@@ -1,4 +1,5 @@
-import { realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
@@ -83,6 +84,16 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
     throw new DirtyTreeError("Your git tree has uncommitted changes. Please commit or stash them first, so every agent fix is its own reviewable commit.");
   }
   const protectedPath = relative(realpathSync(root), realpathSync(config.configPath));
+  // Hash the config too, so the guard holds even when git ignores leakproof.yml.
+  const configText = readFileSync(config.configPath);
+  const configHash = createHash("sha256").update(configText).digest("hex");
+  const configChanged = () => {
+    try {
+      return createHash("sha256").update(readFileSync(config.configPath)).digest("hex") !== configHash;
+    } catch {
+      return true;
+    }
+  };
   await createBranch(root, fixBranchName());
 
   let app: AppHandle = await startApp(config);
@@ -115,12 +126,13 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           record({ attempt, files, verdict: "error", note: agent.note });
           continue;
         }
-        if (files.length === 0) {
+        if (files.length === 0 && !configChanged()) {
           record({ attempt, files, verdict: "still-failing", note: "the agent changed no files" });
           continue;
         }
-        if (files.includes(protectedPath)) {
+        if (files.includes(protectedPath) || configChanged()) {
           await revertAll(root);
+          writeFileSync(config.configPath, configText);
           record({ attempt, files, verdict: "rejected", note: `the agent edited ${protectedPath}` });
           continue;
         }

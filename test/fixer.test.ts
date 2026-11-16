@@ -80,6 +80,19 @@ describe("fixAll", () => {
     expect(kaneCalls(kane)).toHaveLength(3);
   });
 
+  it("rejects an edit to leakproof.yml even when git ignores it", async () => {
+    writeFileSync(join(repo, ".gitignore"), ".leakproof/\nleakproof.yml\n");
+    git("rm", "-q", "--cached", "leakproof.yml");
+    git("add", "-A");
+    git("commit", "-qm", "ignore config");
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "leakproof.yml", content: "url: http://x\nflows: []\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const original = readFileSync(join(repo, "leakproof.yml"), "utf8");
+    const report = await fixAll(config());
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+    expect(readFileSync(join(repo, "leakproof.yml"), "utf8")).toBe(original);
+  });
+
   it("treats an agent crash or timeout as an error and moves to the next finding", async () => {
     server.close();
     server = createServer((_q, s) => s.end("ok"));

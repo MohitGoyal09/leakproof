@@ -4,7 +4,9 @@ import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
 import { loadConfig } from "./config.js";
-import { formatHeader, formatRow, formatSummary } from "./report/terminal.js";
+import { fixAll } from "./fixer.js";
+import { writeReport } from "./report/html.js";
+import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
 import { exitCodeFor, outDir, scan } from "./scan.js";
 import { CHECK_IDS, type CheckId } from "./types.js";
 
@@ -37,8 +39,37 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   io.out(formatHeader(config.url, units, flows.length));
   const t0 = Date.now();
   const report = await scan(config, { only, flow: opts.flow, onResult: (row) => io.out(formatRow(row, io.width)) });
-  io.out(formatSummary(report, Date.now() - t0, relative(process.cwd(), `${outDir(config)}/findings.json`)));
+  const html = writeReport(config.configDir, { before: report }, Object.values(config.secrets));
+  io.out(formatSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
   return exitCodeFor(report);
+}
+
+async function fixCommand(opts: { config: string; maxAttempts: string; agent: string }, io: Io): Promise<number> {
+  if (opts.agent !== "claude") throw new UsageError(`Unsupported agent "${opts.agent}". Only "claude" is supported right now.`);
+  const maxAttempts = Number.parseInt(opts.maxAttempts, 10);
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) throw new UsageError("--max-attempts must be a whole number from 1 to 10.");
+  const config = loadConfig(opts.config);
+  const units = config.flows.reduce((n, f) => n + f.checks.length, 0);
+  io.out(formatHeader(config.url, units, config.flows.length));
+  const t0 = Date.now();
+  let ref = 0;
+  let current = "";
+  const report = await fixAll(config, {
+    maxAttempts,
+    onScanResult: (row) => io.out(formatRow(row, io.width)),
+    onEvent: (e) => {
+      if (e.type === "scanned") io.out(`\n  ${e.findings === 0 ? "Nothing to fix." : `${e.findings} leak${e.findings === 1 ? "" : "s"} found. Handing each one to Claude Code, then asking Kane to prove the fix.`}`);
+      if (e.type === "attempt" && e.finding.id !== current) {
+        current = e.finding.id;
+        io.out(formatExhibitHead(String.fromCharCode(65 + ref++), e.finding));
+      }
+      if (e.type === "attempt-result") io.out(formatAttempt(e.result, io.width));
+      if (e.type === "rescan") io.out("\n  Re-scanning every flow to catch regressions\n");
+    },
+  });
+  const html = `${outDir(config)}/report.html`;
+  io.out(formatFixSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
+  return report.after && report.after.errors.length > 0 ? 2 : (report.after?.findings.length ?? 0) > 0 ? 1 : 0;
 }
 
 /** Run the CLI. Returns the exit code instead of exiting, so it can be tested in process. */
@@ -58,6 +89,16 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .option("--flow <name>", "run one flow")
     .action(async (opts) => {
       code = await scanCommand(opts, io);
+    });
+
+  program
+    .command("fix")
+    .description("Scan, have Claude Code fix each leak, prove every fix with a Kane re-run, and commit it on a new branch")
+    .option("-c, --config <path>", "path to leakproof.yml", "leakproof.yml")
+    .option("--max-attempts <n>", "attempts per leak", "3")
+    .option("--agent <name>", "coding agent", "claude")
+    .action(async (opts) => {
+      code = await fixCommand(opts, io);
     });
 
   try {

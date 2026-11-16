@@ -1,6 +1,6 @@
 import pc from "picocolors";
 import { CHECKS } from "../checks.js";
-import type { CheckId, Finding, ScanReport, UnitResult } from "../types.js";
+import type { CheckId, Finding, FixAttempt, FullReport, ScanReport, UnitResult } from "../types.js";
 
 export interface RowInput extends UnitResult {
   finding?: Finding;
@@ -62,4 +62,31 @@ export function formatSummary(report: ScanReport, elapsedMs: number, reportPath:
   if (report.errors.length > 0) parts.push(pc.yellow(`${report.errors.length} error${report.errors.length === 1 ? "" : "s"}`));
   parts.push(pc.dim(`${Math.round(report.credits)} credits`), pc.dim(duration(elapsedMs)));
   return `\n  ${parts.join(pc.dim("  ·  "))}\n  ${pc.dim("Report")}  ${reportPath}\n`;
+}
+
+const ATTEMPT_WORDS: Record<FixAttempt["verdict"], string> = {
+  fixed: "Kane re-run passed",
+  "still-failing": "Kane re-run still failed",
+  rejected: "rejected",
+  error: "agent error",
+};
+
+export function formatExhibitHead(ref: string, finding: Finding): string {
+  return `\n  ${pc.bold(`Exhibit ${ref}`)}  ${CHECKS[finding.check].label} ${pc.dim(`· ${finding.flow}`)}  ${clean(finding.title)}`;
+}
+
+export function formatAttempt(a: FixAttempt, width: number): string {
+  const files = a.files.length > 0 ? `edited ${a.files.slice(0, 2).join(", ")}${a.files.length > 2 ? ` +${a.files.length - 2}` : ""}` : "no file changes";
+  const verdict = a.verdict === "fixed" ? pc.bold(pc.green("FIXED")) : a.verdict === "still-failing" ? pc.red("STILL LEAKING") : pc.yellow(a.verdict.toUpperCase());
+  const note = a.note ? pc.dim(` (${clean(a.note)})`) : "";
+  return `    ${pc.dim(`attempt ${a.attempt}`)}  ${fit(clean(files), Math.max(20, width - 60))}  ${pc.dim("→")} ${ATTEMPT_WORDS[a.verdict]}  ${verdict}${note}`;
+}
+
+export function formatFixSummary(report: FullReport, elapsedMs: number, reportPath: string): string {
+  const before = report.before.findings.length;
+  const after = report.after?.findings.length ?? before;
+  const fixed = report.outcomes?.filter((o) => o.fixed).length ?? 0;
+  const credits = Math.round(report.before.credits + (report.after?.credits ?? 0));
+  const head = pc.bold(after === 0 ? pc.green(`${before} → ${after} leaks`) : pc.red(`${before} → ${after} leaks`));
+  return `\n  ${[head, `${fixed} fix${fixed === 1 ? "" : "es"} verified by Kane`, pc.dim(`${credits} credits`), pc.dim(duration(elapsedMs))].join(pc.dim("  ·  "))}\n  ${pc.dim("Report")}  ${reportPath}\n`;
 }

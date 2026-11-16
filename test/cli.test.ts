@@ -61,3 +61,32 @@ describe("cli main", () => {
   });
 });
 
+
+describe("cli fix", () => {
+  it("fixes a leak, proves it, and prints the before → after line", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const g = (...a: string[]) => execFileSync("git", a, { cwd: dir, encoding: "utf8" });
+    writeFileSync(join(dir, ".gitignore"), ".leakproof/\n");
+    writeFileSync(join(dir, "app.js"), "leaky\n");
+    const yml = readFileSync(join(dir, "leakproof.yml"), "utf8").replace(/checks: \[cookies, storage, env-leak\]/, "checks: [cookies]")
+      .replace(/  - name: home[\s\S]*?(?=  - name: checkout)/, "");
+    writeFileSync(join(dir, "leakproof.yml"), yml);
+    g("init", "-q", "-b", "main"); g("config", "user.email", "d@e.com"); g("config", "user.name", "D"); g("add", "-A"); g("commit", "-qm", "init");
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    const { useFakeClaude } = await import("./helpers.js");
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    const code = await main(["node", "leakproof", "fix", "--config", join(dir, "leakproof.yml")], io);
+    const text = out.join("\n").replace(/\x1b\[[0-9;]*m/g, "");
+    expect(code).toBe(0);
+    expect(text).toContain("FIXED");
+    expect(text).toMatch(/1 → 0 leaks/);
+    expect(text).toContain("report.html");
+  });
+
+  it("scan also writes report.html", async () => {
+    useFakeKane({});
+    await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml"), "--only", "cookies"], io);
+    expect(out.join("\n")).toContain("report.html");
+    expect(readFileSync(join(dir, ".leakproof", "report.html"), "utf8")).toContain("No leaks found");
+  });
+});

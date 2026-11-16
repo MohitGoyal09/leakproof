@@ -23,3 +23,19 @@ export function kaneCalls(log: string): { key?: string; argv: string[]; varsHadS
   if (!existsSync(log)) return [];
   return readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
 }
+
+export const FAKE_CLAUDE = resolve("test/fixtures/fake-claude.mjs");
+
+/** Point Leakproof at the fake Claude with a list of actions; returns the log path. */
+export function useFakeClaude(plan: unknown[]): string {
+  const log = join(tempDir("lp-claude-"), "calls.log");
+  process.env.LEAKPROOF_CLAUDE_BIN = FAKE_CLAUDE;
+  process.env.FAKE_CLAUDE_PLAN = JSON.stringify(plan);
+  process.env.FAKE_CLAUDE_LOG = log;
+  return log;
+}
+
+export function claudeCalls(log: string): { prompt: string; cwd: string; argv: string[] }[] {
+  if (!existsSync(log)) return [];
+  return readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+}

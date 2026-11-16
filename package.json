@@ -1,0 +1,43 @@
+{
+  "name": "leakproof",
+  "version": "0.1.0",
+  "description": "Find the leaks a screenshot can't see. Kane CLI walks your app's flows, a coding agent fixes each leak, and Kane proves every fix.",
+  "type": "module",
+  "bin": {
+    "leakproof": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --pretty false",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "kane-cli",
+    "testing",
+    "security",
+    "agent",
+    "claude-code"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "execa": "^9.6.1",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.9.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}

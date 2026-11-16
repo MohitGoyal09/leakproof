@@ -1,0 +1,20 @@
+url: http://localhost:3000
+start: npm run build && npm run start
+env: [SHOP_USER, SHOP_PASS]
+checks:
+  vitals: { slow_ms: 1000 }
+flows:
+  - name: home
+    checks: [network, vitals]
+    steps:
+      - Open the home page and wait for the product list to appear
+  - name: add-to-cart
+    checks: [console]
+    steps:
+      - Open the home page
+      - Click "Add to cart" on the first product and check the cart count shows 1
+  - name: checkout
+    checks: [cookies, storage, env-leak]
+    steps:
+      - Open /login and sign in with username {{SHOP_USER}} and password {{SHOP_PASS}}
+      - Open /checkout and wait for the order summary to appear

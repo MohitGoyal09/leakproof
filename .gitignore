@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.leakproof/
+.superpowers/
+.next/
+.env*
+.DS_Store
+spike/out/

@@ -1,0 +1,127 @@
+import { randomUUID } from "node:crypto";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execa } from "execa";
+import type { KaneResult, KaneVerdict, RunUnit } from "./types.js";
+
+export class KaneNotFoundError extends Error {
+  override name = "KaneNotFoundError";
+  constructor(bin: string) {
+    super(`Kane CLI was not found (${bin}). Install it with: npm install -g @testmuai/kane-cli, then run: kane-cli login`);
+  }
+}
+
+export interface RunKaneOptions {
+  url: string;
+  secrets: Record<string, string>;
+  timeoutS?: number;
+  outDir: string;
+}
+
+const DEFAULT_TIMEOUT_S = 180;
+
+function kaneBin(): string {
+  return process.env.LEAKPROOF_KANE_BIN || "kane-cli";
+}
+
+type RawEvent = Record<string, unknown> & { type?: string };
+
+function lastRunEnd(stdout: string): RawEvent | undefined {
+  const events = stdout.split("\n").flatMap((line): RawEvent[] => {
+    const t = line.trim();
+    if (!t.startsWith("{")) return [];
+    try {
+      return [JSON.parse(t) as RawEvent];
+    } catch {
+      return [];
+    }
+  });
+  return events.reverse().find((e) => e.type === "run_end");
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+function toVerdict(v: unknown): KaneVerdict | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  return {
+    bugTitle: str(o.bug_title),
+    rootCause: str(o.root_cause),
+    suggestion: str(o.suggestion),
+    oneLiner: str(o.one_liner),
+    confidence: typeof o.confidence === "number" ? o.confidence : undefined,
+    confirmed: typeof o.confirmed === "boolean" ? o.confirmed : undefined,
+  };
+}
+
+/**
+ * Turn Kane's NDJSON into a result. Classification uses run_end.reason_code (see docs/kane-assertions.md):
+ * success.* passed, assertion_error.* failed (a finding), anything else an error. Exit code alone is not trusted.
+ */
+export function parseNdjson(stdout: string, exitCode: number): KaneResult {
+  const end = lastRunEnd(stdout);
+  if (!end) {
+    return {
+      status: exitCode === 3 ? "timeout" : "error",
+      exitCode,
+      summary: `Kane exited (code ${exitCode}) without a run_end event.`,
+      finalState: {},
+    };
+  }
+  const reasonCode = str(end.reason_code);
+  let status: KaneResult["status"];
+  if (reasonCode?.startsWith("success")) status = "passed";
+  else if (reasonCode?.startsWith("assertion_error")) status = "failed";
+  else if (!reasonCode && end.status === "passed" && exitCode === 0) status = "passed";
+  else status = exitCode === 3 ? "timeout" : "error";
+
+  const runDir = str(end.run_dir);
+  const finalState = (end.final_state && typeof end.final_state === "object" ? end.final_state : {}) as Record<string, string>;
+  return {
+    status,
+    exitCode,
+    reasonCode,
+    summary: str(end.summary) ?? str(end.one_liner) ?? "",
+    reason: str(end.reason),
+    verdict: toVerdict(end.verdict),
+    finalState,
+    runDir,
+    sessionDir: str(end.session_dir) ?? runDir?.replace(/\/runs\/\d+$/, ""),
+    testUrl: str(end.test_url),
+    credits: typeof end.credits_consumed === "number" ? end.credits_consumed : undefined,
+  };
+}
+
+async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Promise<KaneResult> {
+  const bin = kaneBin();
+  const varsPath = join(tmpdir(), `leakproof-vars-${randomUUID()}.json`);
+  const vars = Object.fromEntries(Object.entries(opts.secrets).map(([k, value]) => [k, { value, secret: true }]));
+  writeFileSync(varsPath, JSON.stringify(vars), { mode: 0o600 });
+  const timeoutS = opts.timeoutS ?? DEFAULT_TIMEOUT_S;
+  try {
+    const res = await execa(
+      bin,
+      ["run", unit.objective, "--url", opts.url, "--agent", "--headless", "--timeout", String(timeoutS), "--variables-file", varsPath],
+      { reject: false, stdin: "ignore", timeout: (timeoutS + 60) * 1000 },
+    );
+    if ((res as { code?: string }).code === "ENOENT" || /ENOENT/.test(String(res.message ?? ""))) throw new KaneNotFoundError(bin);
+    const stdout = typeof res.stdout === "string" ? res.stdout : "";
+    mkdirSync(opts.outDir, { recursive: true });
+    const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${attempt > 1 ? `.try${attempt}` : ""}`);
+    writeFileSync(`${base}.ndjson`, stdout);
+    writeFileSync(`${base}.err`, typeof res.stderr === "string" ? res.stderr : "");
+    return parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
+  } finally {
+    rmSync(varsPath, { force: true });
+  }
+}
+
+/** Run one unit through Kane. An error or timeout is retried once; a real failure is not. */
+export async function runKane(unit: RunUnit, opts: RunKaneOptions): Promise<KaneResult> {
+  const first = await runOnce(unit, opts, 1);
+  if (first.status !== "error" && first.status !== "timeout") return first;
+  return runOnce(unit, opts, 2);
+}

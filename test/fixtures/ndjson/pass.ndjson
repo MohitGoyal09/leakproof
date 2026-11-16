@@ -1,0 +1,4 @@
+{"type": "run_start", "objective": "x", "timestamp": "2026-11-17T00:00:00Z"}
+{"type": "step_start", "index": 0, "objective": "Open"}
+{"type": "step_end", "index": 0, "status": "passed", "duration": 1.0, "summary": "Opened"}
+{"type": "run_end", "status": "passed", "summary": "Waited for the product list to appear on the homepage.\nThe page completed without any server errors (status 500 or higher).", "one_liner": "waited for the product list on localhost", "reason": "Objective completed", "reason_code": "success.complete", "result_code": 100, "final_state": {"url": "http://localhost:3000/", "network_request_status_500_or_higher": "false"}, "run_dir": "/home/dev/.testmuai/kaneai/sessions/00000000-0000-4000-8000-000000000000/runs/0", "session_dir": "/home/dev/.testmuai/kaneai/sessions/00000000-0000-4000-8000-000000000000", "test_url": "https://test-manager.lambdatest.com/share/example-run", "credits_consumed": 14.576889999999999}

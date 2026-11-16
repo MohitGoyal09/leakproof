@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440">
+  <rect width="1200" height="440" fill="#0d4f52"/>
+  <g fill="#e6f0ef">
+    <text x="64" y="120" font-family="Helvetica Neue, Arial, sans-serif" font-size="22" letter-spacing="1">Driftwood Supply · Collection 04</text>
+    <text x="64" y="210" font-family="Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="600" letter-spacing="-2">Objects for</text>
+    <text x="64" y="290" font-family="Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="600" letter-spacing="-2">slow mornings</text>
+  </g>
+  <rect x="640" y="64" width="232" height="152" rx="4" fill="#b5652e"/>
+  <rect x="896" y="64" width="240" height="152" rx="4" fill="#8a8f6a"/>
+  <rect x="640" y="232" width="232" height="144" rx="4" fill="#c9a24a"/>
+  <rect x="896" y="232" width="240" height="144" rx="4" fill="#6b4a33"/>
+  <g fill="rgba(255,255,255,0.88)">
+    <rect x="722" y="100" width="56" height="70" rx="8"/><path d="M778 116h10a16 16 0 0 1 0 32h-10v-9h10a7 7 0 0 0 0-14h-10z"/>
+    <rect x="950" y="104" width="132" height="70" rx="5"/>
+    <path d="M730 262h52l14 36h-80z"/><rect x="752" y="298" width="8" height="40"/><rect x="726" y="338" width="60" height="10" rx="3"/>
+    <rect x="936" y="296" width="160" height="30" rx="7"/>
+  </g>
+</svg>

@@ -146,6 +146,13 @@ export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack
   if (result.status !== "failed") return null;
   const derived = pack && ctx ? deriveEvidence(unit.check, pack, ctx) : { evidence: [] as string[] };
   const assertion = unit.objective.match(/In this same step, ([^\n]+)/)?.[1] ?? "";
+  const label = CHECKS[unit.check].label;
+  // Kane sometimes fails an assertion but doubts its own verdict; then our raw evidence speaks instead of its wording.
+  const trustVerdict = result.verdict?.confirmed !== false || derived.evidence.length === 0;
+  const title = trustVerdict && result.verdict?.bugTitle ? result.verdict.bugTitle : `${label}: ${derived.offender ?? unit.flow}`;
+  const reason = trustVerdict
+    ? result.verdict?.rootCause ?? result.reason ?? result.summary
+    : `Kane's check failed: ${assertion.replace(/^assert that /, "")} Evidence: ${derived.evidence.join("; ")}.`;
   return {
     id: unit.id,
     check: unit.check,
@@ -153,8 +160,8 @@ export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack
     assertion,
     offender: derived.offender,
     evidence: derived.evidence,
-    title: result.verdict?.bugTitle ?? CHECKS[unit.check].label,
-    reason: result.verdict?.rootCause ?? result.reason ?? result.summary,
+    title,
+    reason,
     summary: result.summary,
     suggestion: result.verdict?.suggestion,
     runDir: result.runDir,

@@ -68,6 +68,15 @@ describe("toFinding", () => {
     expect(f.testUrl).toMatch(/^https:\/\/test-manager/);
   });
 
+  it("uses an evidence-based title when Kane did not confirm its verdict", () => {
+    const r = result("fail", 1);
+    const unconfirmed = { ...r, verdict: { ...r.verdict, confirmed: false, bugTitle: "Unsubstantiated page-load timing assertion", rootCause: "No timings supplied." } };
+    const f = toFinding({ ...unit, id: "home:vitals", flow: "home", check: "vitals" }, unconfirmed, pack("home__vitals"), ctx)!;
+    expect(f.title).toBe("Slow requests: /api/hero");
+    expect(f.reason).toContain("GET /api/hero took");
+    expect(f.reason).not.toContain("No timings supplied");
+  });
+
   it("adds derived evidence and screenshot from the pack", () => {
     const f = toFinding({ ...unit, id: "home:network", flow: "home", check: "network" }, result("fail", 1), { ...pack("home__network"), screenshot: "/x/shot.jpg" }, ctx)!;
     expect(f.offender).toBe("/api/recommendations");

@@ -1,0 +1,106 @@
+{
+ "har": [
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/"
+   },
+   "response": {
+    "status": 200
+   },
+   "time": 1534.405029296875,
+   "_resource_type": "document",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/api/recommendations"
+   },
+   "response": {
+    "status": 500
+   },
+   "time": 0.0,
+   "_resource_type": "fetch",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/login"
+   },
+   "response": {
+    "status": 200
+   },
+   "time": 8.954833984375,
+   "_resource_type": "document",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/?_rsc=NBYwLSnedbI3BPhy"
+   },
+   "response": {
+    "status": 200
+   },
+   "time": 1509.24951171875,
+   "_resource_type": "fetch",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/api/hero"
+   },
+   "response": {
+    "status": 200
+   },
+   "time": 3010.947021484375,
+   "_resource_type": "image",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "http://localhost:3000/api/recommendations"
+   },
+   "response": {
+    "status": 500
+   },
+   "time": 53.76513671875,
+   "_resource_type": "fetch",
+   "_failed": false
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "http://staging.localhost:3000/api/collect"
+   },
+   "response": {
+    "status": 204
+   },
+   "time": 1.601318359375,
+   "_resource_type": "fetch",
+   "_failed": false
+  }
+ ],
+ "console": [
+  {
+   "sequence": 0,
+   "level": "error",
+   "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+   "url": "http://localhost:3000/api/recommendations",
+   "line": 0,
+   "step": "0-1"
+  },
+  {
+   "sequence": 1,
+   "level": "error",
+   "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+   "url": "http://localhost:3000/api/recommendations",
+   "line": 0,
+   "step": "0-2"
+  }
+ ]
+}

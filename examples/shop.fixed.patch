@@ -1,0 +1,116 @@
+diff --git a/examples/shop/app/api/login/route.ts b/examples/shop/app/api/login/route.ts
+index 8659112..a554900 100644
+--- a/examples/shop/app/api/login/route.ts
++++ b/examples/shop/app/api/login/route.ts
+@@ -14,7 +14,6 @@ export async function POST(req: Request) {
+     return Response.json({ error: "invalid credentials" }, { status: 401 });
+   }
+   const token = fakeJwt(username);
+-  // LEAK (cookies): session cookie readable by JavaScript and sent over plain http.
+-  (await cookies()).set("session", token, { httpOnly: false, sameSite: "lax", path: "/" });
++  (await cookies()).set("session", token, { httpOnly: true, secure: true, sameSite: "strict", path: "/" });
+   return Response.json({ token });
+ }
+diff --git a/examples/shop/app/api/recommendations/route.ts b/examples/shop/app/api/recommendations/route.ts
+index d43cf4c..c0f727a 100644
+--- a/examples/shop/app/api/recommendations/route.ts
++++ b/examples/shop/app/api/recommendations/route.ts
+@@ -1,4 +1,5 @@
+-// LEAK (network): this endpoint is broken, but the page hides it.
++import { PRODUCTS } from "../../products";
++
+ export async function GET() {
+-  return Response.json({ error: "recommendation service unavailable" }, { status: 500 });
++  return Response.json(PRODUCTS.slice(2));
+ }
+diff --git a/examples/shop/app/checkout/page.tsx b/examples/shop/app/checkout/page.tsx
+index 88790cf..31584a0 100644
+--- a/examples/shop/app/checkout/page.tsx
++++ b/examples/shop/app/checkout/page.tsx
+@@ -1,13 +1,6 @@
+ "use client";
+ 
+-import { useEffect } from "react";
+-
+ export default function Checkout() {
+-  useEffect(() => {
+-    // LEAK (env-leak): production code still reports to a staging host.
+-    fetch("http://staging.localhost:3000/api/collect", { method: "POST", mode: "no-cors" }).catch(() => {});
+-  }, []);
+-
+   return (
+     <section className="panel">
+       <h1>Order summary</h1>
+diff --git a/examples/shop/app/globals.css b/examples/shop/app/globals.css
+index a39ad6e..e18278f 100644
+--- a/examples/shop/app/globals.css
++++ b/examples/shop/app/globals.css
+@@ -25,7 +25,7 @@ h1, h2 { margin: 0; font-weight: 600; }
+ .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; display: grid; gap: 32px; }
+ .footer { max-width: 1080px; margin: 0 auto; padding: 24px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 13px; }
+ 
+-.hero { width: 100%; display: block; border-radius: 4px; }
++.hero { width: 100%; height: auto; display: block; border-radius: 4px; }
+ .banner { margin: 0; padding: 14px 20px; background: var(--teal); color: var(--teal-ink); border-radius: 4px; }
+ 
+ .collection-head { display: flex; justify-content: space-between; align-items: baseline; padding-top: 16px; border-top: 1px solid var(--ink); }
+diff --git a/examples/shop/app/login/page.tsx b/examples/shop/app/login/page.tsx
+index 7896b47..f3c1756 100644
+--- a/examples/shop/app/login/page.tsx
++++ b/examples/shop/app/login/page.tsx
+@@ -23,10 +23,6 @@ export default function Login() {
+       setError("That username and password don't match. Check them and try again.");
+       return;
+     }
+-    const { token } = await res.json();
+-    // LEAK (storage): a session token and a payment key kept in localStorage.
+-    localStorage.setItem("auth_token", token);
+-    localStorage.setItem("stripe_key", "sk_live_demo123");
+     router.push("/checkout");
+   }
+ 
+diff --git a/examples/shop/app/page.tsx b/examples/shop/app/page.tsx
+index 86e437b..f9b83f2 100644
+--- a/examples/shop/app/page.tsx
++++ b/examples/shop/app/page.tsx
+@@ -4,35 +4,29 @@ import { useEffect, useState } from "react";
+ import { ObjectPlate } from "./ObjectPlate";
+ import { PRODUCTS, type Product } from "./products";
+ 
+-type Analytics = { track: (event: string, data: object) => void };
++type Analytics = { track: (event: string, data: object) => void } | undefined;
+ 
+ export default function Home() {
+   const [count, setCount] = useState(0);
+   const [picks, setPicks] = useState<Product[] | null>(null);
+-  const [showBanner, setShowBanner] = useState(false);
++  
+ 
+   useEffect(() => {
+-    // LEAK (network): the API returns 500, the UI quietly falls back.
+     fetch("/api/recommendations")
+       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+       .then((data: Product[]) => setPicks(data))
+       .catch(() => setPicks(PRODUCTS.slice(0, 2)));
+-    // LEAK (vitals): a promo banner appears late and shifts the page.
+-    const t = setTimeout(() => setShowBanner(true), 1500);
+-    return () => clearTimeout(t);
+   }, []);
+ 
+   function addToCart(product: Product) {
+     setCount((c) => c + 1);
+-    // LEAK (console): analytics is never loaded, so this throws.
+-    (window as unknown as { analytics: Analytics }).analytics.track("add_to_cart", { id: product.id });
++    (window as unknown as { analytics: Analytics }).analytics?.track("add_to_cart", { id: product.id });
+   }
+ 
+   return (
+     <>
+-      {/* LEAK (vitals): slow, unsized hero image. */}
+-      <img className="hero" src="/api/hero" alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
+-      {showBanner && <p className="banner">Free shipping on orders over $50, through Sunday.</p>}
++      <img className="hero" src="/hero.svg" width={1200} height={440} alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
++      <p className="banner">Free shipping on orders over $50, through Sunday.</p>
+ 
+       <div className="collection-head">
+         <h1>Spring collection</h1>

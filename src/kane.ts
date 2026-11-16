@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
+import { redactSecrets } from "./redact.js";
 import type { KaneResult, KaneVerdict, RunUnit } from "./types.js";
 
 export class KaneNotFoundError extends Error {
@@ -11,6 +12,15 @@ export class KaneNotFoundError extends Error {
     super(`Kane CLI was not found (${bin}). Install it with: npm install -g @testmuai/kane-cli, then run: kane-cli login`);
   }
 }
+
+export class KaneAuthError extends Error {
+  override name = "KaneAuthError";
+  constructor() {
+    super("Kane CLI is not logged in. Run: kane-cli login (or kane-cli login --username <u> --access-key <key> in CI), then try again.");
+  }
+}
+
+const AUTH_SIGNAL = /not (logged|signed) in|login required|kane-cli login|unauthori[sz]ed|invalid (token|credentials)|token (expired|invalid)/i;
 
 export interface RunKaneOptions {
   url: string;
@@ -108,12 +118,17 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
       { reject: false, stdin: "ignore", timeout: (timeoutS + 60) * 1000 },
     );
     if ((res as { code?: string }).code === "ENOENT" || /ENOENT/.test(String(res.message ?? ""))) throw new KaneNotFoundError(bin);
-    const stdout = typeof res.stdout === "string" ? res.stdout : "";
+    const secrets = Object.values(opts.secrets);
+    const stdout = redactSecrets(typeof res.stdout === "string" ? res.stdout : "", secrets);
+    const stderr = redactSecrets(typeof res.stderr === "string" ? res.stderr : "", secrets);
     mkdirSync(opts.outDir, { recursive: true });
     const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${attempt > 1 ? `.try${attempt}` : ""}`);
     writeFileSync(`${base}.ndjson`, stdout);
-    writeFileSync(`${base}.err`, typeof res.stderr === "string" ? res.stderr : "");
-    return parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
+    writeFileSync(`${base}.err`, stderr);
+    const result = parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
+    const authProblem = result.reasonCode?.startsWith("auth") || (result.status === "error" && AUTH_SIGNAL.test(`${stderr}\n${result.summary}\n${result.reason ?? ""}`));
+    if (authProblem) throw new KaneAuthError();
+    return result;
   } finally {
     rmSync(varsPath, { force: true });
   }

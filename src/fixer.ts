@@ -5,6 +5,7 @@ import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
 import { changedFiles, commitAll, createBranch, fixBranchName, isClean, repoRoot, revertAll } from "./git.js";
+import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
 import { findingFor, runUnit, scan, type ScanOptions } from "./scan.js";
 import type { Config, Finding, FindingOutcome, FixAttempt, Flow, FullReport, KaneResult } from "./types.js";
@@ -34,7 +35,7 @@ function claudeBin(): string {
 }
 
 /** The prompt the coding agent gets for one finding. Contains evidence and placeholders, never secret values. */
-export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult): string {
+export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, secrets: readonly string[] = []): string {
   const check = CHECKS[finding.check];
   const lines = [
     "Leakproof found a leak with Kane CLI, running this app's real user flow in a real browser. Fix it in this repository.",
@@ -59,7 +60,7 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult):
     "- Do not delete features the flow uses.",
     "- Do not commit. Leakproof re-runs Kane and commits only when the check passes.",
   );
-  return lines.join("\n");
+  return redactSecrets(lines.join("\n"), secrets);
 }
 
 /** Run the coding agent headless in `dir`. ok=false on crash, timeout or missing binary. */
@@ -119,7 +120,7 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
 
       for (let attempt = 1; attempt <= maxAttempts && !fixed; attempt++) {
         opts.onEvent?.({ type: "attempt", finding, attempt });
-        const agent = await runAgent(root, buildFixPrompt(finding, flow, last), opts.agentTimeoutMs);
+        const agent = await runAgent(root, buildFixPrompt(finding, flow, last, Object.values(config.secrets)), opts.agentTimeoutMs);
         const files = await changedFiles(root);
         if (!agent.ok) {
           await revertAll(root);

@@ -5,6 +5,7 @@ import { dedupe, readEvidencePack, toFinding } from "./findings.js";
 import { runKane } from "./kane.js";
 import { buildUnits } from "./objective.js";
 import { mapLimit } from "./pool.js";
+import { redactSecrets } from "./redact.js";
 import type { CheckId, Config, Finding, KaneResult, RunUnit, ScanReport, UnitResult } from "./types.js";
 
 export class ScanOptionError extends Error {
@@ -47,7 +48,19 @@ export async function runUnit(config: Config, unitId: string): Promise<{ unit: R
 export function findingFor(config: Config, unit: RunUnit, result: KaneResult): Finding | null {
   if (result.status !== "failed") return null;
   const pack = result.sessionDir ? readEvidencePack(result.sessionDir, join(outDir(config), "evidence"), unit.id) : undefined;
-  return toFinding(unit, result, pack, { appHost: new URL(config.url).host, slowMs: config.vitals.slowMs });
+  const finding = toFinding(unit, result, pack, { appHost: new URL(config.url).host, slowMs: config.vitals.slowMs });
+  if (!finding) return null;
+  const secrets = Object.values(config.secrets);
+  const r = (t: string) => redactSecrets(t, secrets);
+  return {
+    ...finding,
+    title: r(finding.title),
+    reason: r(finding.reason),
+    summary: r(finding.summary),
+    suggestion: finding.suggestion && r(finding.suggestion),
+    offender: finding.offender && r(finding.offender),
+    evidence: finding.evidence.map(r),
+  };
 }
 
 /** Scan every (flow, check) unit through Kane and write `.leakproof/findings.json`. */
@@ -59,7 +72,10 @@ export async function scan(config: Config, opts: ScanOptions = {}): Promise<Scan
     const rows = await mapLimit(units, opts.concurrency ?? SCAN_CONCURRENCY, async (unit) => {
       const result = await runKane(unit, kaneOptions(config));
       const finding = findingFor(config, unit, result) ?? undefined;
-      const message = result.status === "error" || result.status === "timeout" ? result.reason ?? result.summary : undefined;
+      const message =
+        result.status === "error" || result.status === "timeout"
+          ? redactSecrets(result.reason ?? result.summary, Object.values(config.secrets))
+          : undefined;
       const row = { unit: unit.id, status: result.status, credits: result.credits };
       opts.onResult?.({ ...row, finding, message });
       return { row, finding, message };

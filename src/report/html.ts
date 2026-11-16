@@ -1,13 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { CHECKS } from "../checks.js";
+import { redactSecrets as redact } from "../redact.js";
 import type { Finding, FindingOutcome, FixAttempt, FullReport } from "../types.js";
 
-const MASK = "•••";
-
-function redact(text: string, secrets: readonly string[]): string {
-  return secrets.filter((s) => s.length >= 3).reduce((t, s) => t.split(s).join(MASK), text);
-}
 
 function makeEsc(secrets: readonly string[]) {
   return (value: unknown): string =>

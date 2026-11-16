@@ -22,5 +22,6 @@ if (!key) { process.stdout.write(readFileSync(join(here, "ndjson", "pass.ndjson"
 const entry = Array.isArray(plan[key]) ? plan[key][Math.min(calls, plan[key].length - 1)] : plan[key];
 if (entry.sleep) await new Promise((r) => setTimeout(r, entry.sleep));
 process.stdout.write(readFileSync(join(here, "ndjson", `${entry.fixture}.ndjson`)));
+if (entry.stderr) process.stderr.write(entry.stderr);
 process.stdout.write("some log line that is not json\n");
 process.exit(entry.exit);

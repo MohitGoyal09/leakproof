@@ -98,3 +98,12 @@ describe("runKane", () => {
     await expect(runKane(unit("x"), opts())).rejects.toThrow(/npm install -g @testmuai\/kane-cli/);
   });
 });
+
+describe("runKane login detection", () => {
+  it("explains how to log in when Kane is logged out", async () => {
+    const { KaneAuthError } = await import("../src/kane.js");
+    useFakeKane({ HttpOnly: { fixture: "no-run-end", exit: 2, stderr: "Error: Not logged in. Run `kane-cli login` first." } });
+    await expect(runKane(unit("assert HttpOnly"), opts())).rejects.toThrow(KaneAuthError);
+    await expect(runKane(unit("assert HttpOnly"), opts())).rejects.toThrow(/kane-cli login/);
+  });
+});

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { realpathSync } from "node:fs";
-import { relative } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
 import { loadConfig } from "./config.js";
 import { fixAll } from "./fixer.js";
+import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
 import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
 import { exitCodeFor, outDir, scan } from "./scan.js";
@@ -89,6 +90,25 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .option("--flow <name>", "run one flow")
     .action(async (opts) => {
       code = await scanCommand(opts, io);
+    });
+
+  program
+    .command("init")
+    .description("Write a starter leakproof.yml in this folder")
+    .action(() => {
+      const { configPath, gitignoreUpdated } = runInit(process.cwd());
+      io.out(`\n  Wrote ${relative(process.cwd(), configPath)}${gitignoreUpdated ? " and added .leakproof/ to .gitignore" : ""}.`);
+      io.out("  Edit the url and flows, then run: npx leakproof scan\n");
+    });
+
+  program
+    .command("report")
+    .description("Print the path of the last HTML report")
+    .option("-c, --config <path>", "path to leakproof.yml", "leakproof.yml")
+    .action((opts: { config: string }) => {
+      const path = join(dirname(resolve(opts.config)), ".leakproof", "report.html");
+      if (!existsSync(path)) throw new UsageError("No report yet. Run: npx leakproof scan");
+      io.out(path);
     });
 
   program

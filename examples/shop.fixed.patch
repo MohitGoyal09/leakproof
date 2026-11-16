@@ -1,3 +1,47 @@
+diff --git a/examples/shop/app/Storefront.tsx b/examples/shop/app/Storefront.tsx
+index 0ee22e3..6e66a9c 100644
+--- a/examples/shop/app/Storefront.tsx
++++ b/examples/shop/app/Storefront.tsx
+@@ -4,35 +4,28 @@ import { useEffect, useState } from "react";
+ import { ObjectPlate } from "./ObjectPlate";
+ import { PRODUCTS, type Product } from "./products";
+ 
+-type Analytics = { track: (event: string, data: object) => void };
++type Analytics = { track: (event: string, data: object) => void } | undefined;
+ 
+ export function Storefront() {
+   const [count, setCount] = useState(0);
+   const [picks, setPicks] = useState<Product[] | null>(null);
+-  const [showBanner, setShowBanner] = useState(false);
+ 
+   useEffect(() => {
+-    // LEAK (network): the API returns 500, the UI quietly falls back.
+     fetch("/api/recommendations")
+       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+       .then((data: Product[]) => setPicks(data))
+       .catch(() => setPicks(PRODUCTS.slice(0, 2)));
+-    // LEAK (vitals): a promo banner appears late and shifts the page.
+-    const t = setTimeout(() => setShowBanner(true), 1500);
+-    return () => clearTimeout(t);
+   }, []);
+ 
+   function addToCart(product: Product) {
+     setCount((c) => c + 1);
+-    // LEAK (console): analytics is never loaded, so this throws.
+-    (window as unknown as { analytics: Analytics }).analytics.track("add_to_cart", { id: product.id });
++    (window as unknown as { analytics: Analytics }).analytics?.track("add_to_cart", { id: product.id });
+   }
+ 
+   return (
+     <>
+-      {/* LEAK (vitals): slow, unsized hero image. */}
+-      <img className="hero" src="/api/hero" alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
+-      {showBanner && <p className="banner">Free shipping on orders over $50, through Sunday.</p>}
++      <img className="hero" src="/hero.svg" width={1200} height={440} alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
++      <p className="banner">Free shipping on orders over $50, through Sunday.</p>
+ 
+       <div className="collection-head">
+         <h1>Spring collection</h1>
 diff --git a/examples/shop/app/api/login/route.ts b/examples/shop/app/api/login/route.ts
 index 8659112..a554900 100644
 --- a/examples/shop/app/api/login/route.ts
@@ -70,47 +114,19 @@ index 7896b47..f3c1756 100644
    }
  
 diff --git a/examples/shop/app/page.tsx b/examples/shop/app/page.tsx
-index 86e437b..f9b83f2 100644
+index 986fe03..aa2d284 100644
 --- a/examples/shop/app/page.tsx
 +++ b/examples/shop/app/page.tsx
-@@ -4,35 +4,29 @@ import { useEffect, useState } from "react";
- import { ObjectPlate } from "./ObjectPlate";
- import { PRODUCTS, type Product } from "./products";
+@@ -2,12 +2,6 @@ import { Storefront } from "./Storefront";
  
--type Analytics = { track: (event: string, data: object) => void };
-+type Analytics = { track: (event: string, data: object) => void } | undefined;
+ export const dynamic = "force-dynamic";
  
- export default function Home() {
-   const [count, setCount] = useState(0);
-   const [picks, setPicks] = useState<Product[] | null>(null);
--  const [showBanner, setShowBanner] = useState(false);
-+  
- 
-   useEffect(() => {
--    // LEAK (network): the API returns 500, the UI quietly falls back.
-     fetch("/api/recommendations")
-       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-       .then((data: Product[]) => setPicks(data))
-       .catch(() => setPicks(PRODUCTS.slice(0, 2)));
--    // LEAK (vitals): a promo banner appears late and shifts the page.
--    const t = setTimeout(() => setShowBanner(true), 1500);
--    return () => clearTimeout(t);
-   }, []);
- 
-   function addToCart(product: Product) {
-     setCount((c) => c + 1);
--    // LEAK (console): analytics is never loaded, so this throws.
--    (window as unknown as { analytics: Analytics }).analytics.track("add_to_cart", { id: product.id });
-+    (window as unknown as { analytics: Analytics }).analytics?.track("add_to_cart", { id: product.id });
-   }
- 
-   return (
-     <>
--      {/* LEAK (vitals): slow, unsized hero image. */}
--      <img className="hero" src="/api/hero" alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
--      {showBanner && <p className="banner">Free shipping on orders over $50, through Sunday.</p>}
-+      <img className="hero" src="/hero.svg" width={1200} height={440} alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
-+      <p className="banner">Free shipping on orders over $50, through Sunday.</p>
- 
-       <div className="collection-head">
-         <h1>Spring collection</h1>
+-async function loadInventory(): Promise<void> {
+-  // LEAK (vitals): a slow inventory lookup blocks the first byte of every page view.
+-  await new Promise((r) => setTimeout(r, 1500));
+-}
+-
+ export default async function Home() {
+-  await loadInventory();
+   return <Storefront />;
+ }

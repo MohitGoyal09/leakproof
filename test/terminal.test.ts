@@ -24,6 +24,14 @@ describe("terminal", () => {
     expect(strip(formatRow({ unit: "home:network", status: "failed", finding: long }, 80)).length).toBeLessThanOrEqual(80);
   });
 
+  it("strips control characters from page-supplied text", () => {
+    const evil = { ...finding, evidence: ["boom\x1b]0;pwned\x07\x1b[2J done\r\n"] };
+    const row = formatRow({ unit: "home:network", status: "failed", finding: evil }, 100);
+    expect(row).not.toMatch(/\x1b\]|\x07|\x1b\[2J|\r/);
+    expect(strip(row)).toContain("boom]0;pwned[2J done");
+    expect(formatHeader("http://x\x1b[2J", 1, 1)).not.toContain("\x1b[2J");
+  });
+
   it("header names the url and the size of the scan", () => {
     expect(strip(formatHeader("http://localhost:3000", 6, 3))).toContain("6 checks across 3 flows");
   });

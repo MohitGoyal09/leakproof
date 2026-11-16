@@ -11,6 +11,11 @@ const COL_STATUS = 7;
 const COL_FLOW = 14;
 const COL_CHECK = 22;
 
+/** Remove C0/C1 control characters so text from a scanned page cannot drive the terminal. */
+export function clean(text: string): string {
+  return text.replace(/[\x00-\x1f\x7f-\x9f]/g, (c) => (c === "\n" || c === "\t" ? " " : "")).replace(/ {2,}/g, " ").trim();
+}
+
 function fit(text: string, max: number): string {
   if (max <= 1) return "";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
@@ -34,12 +39,12 @@ export function formatRow(row: RowInput, width: number): string {
         : row.message ?? "Kane could not finish this check";
   const fixed = 2 + COL_STATUS + COL_FLOW + COL_CHECK;
   const line = `  ${badge(row.status)}${pc.dim(fit(flow, COL_FLOW - 1).padEnd(COL_FLOW))}${fit(label, COL_CHECK - 1).padEnd(COL_CHECK)}`;
-  const tail = fit(detail, width - fixed);
+  const tail = fit(clean(detail), width - fixed);
   return (line + (row.status === "failed" ? tail : pc.dim(tail))).trimEnd();
 }
 
 export function formatHeader(url: string, units: number, flows: number): string {
-  return `\n${pc.bold("leakproof")}  ${pc.dim("scanning")} ${url}  ${pc.dim("·")}  ${units} check${units === 1 ? "" : "s"} across ${flows} flow${flows === 1 ? "" : "s"}\n`;
+  return `\n${pc.bold("leakproof")}  ${pc.dim("scanning")} ${clean(url)}  ${pc.dim("·")}  ${units} check${units === 1 ? "" : "s"} across ${flows} flow${flows === 1 ? "" : "s"}\n`;
 }
 
 function duration(ms: number): string {

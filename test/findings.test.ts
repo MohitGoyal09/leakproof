@@ -77,6 +77,14 @@ describe("toFinding", () => {
     expect(f.reason).not.toContain("No timings supplied");
   });
 
+  it("uses a plain title when Kane doubts its verdict and there is no raw evidence", () => {
+    const r = result("fail", 1);
+    const unconfirmed = { ...r, verdict: { ...r.verdict, confirmed: false, bugTitle: "Cookie checkpoint outcome conflicts with recorded assertion" } };
+    const f = toFinding(unit, unconfirmed)!;
+    expect(f.title).toBe("Cookie flags check failed in the checkout flow");
+    expect(f.reason).toContain("no cookies are set without the HttpOnly flag");
+  });
+
   it("adds derived evidence and screenshot from the pack", () => {
     const f = toFinding({ ...unit, id: "home:network", flow: "home", check: "network" }, result("fail", 1), { ...pack("home__network"), screenshot: "/x/shot.jpg" }, ctx)!;
     expect(f.offender).toBe("/api/recommendations");

@@ -32,7 +32,7 @@ export function assertionFor(check: CheckId, ctx: AssertionContext): string {
     case "console":
       return "assert that there is no console message at level 'error' other than 'Failed to load resource' messages.";
     case "cookies":
-      return "assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.";
+      return "assert that at least one cookie is set. Then assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.";
     case "storage":
       return "assert that no localStorage key contains 'token', 'secret' or 'api_key'. Then assert that no localStorage value starts with 'sk_live_', 'sk_test_' or 'eyJ'.";
     case "env-leak":

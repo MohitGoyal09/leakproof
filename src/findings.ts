@@ -147,12 +147,18 @@ export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack
   const derived = pack && ctx ? deriveEvidence(unit.check, pack, ctx) : { evidence: [] as string[] };
   const assertion = unit.objective.match(/In this same step, ([^\n]+)/)?.[1] ?? "";
   const label = CHECKS[unit.check].label;
-  // Kane sometimes fails an assertion but doubts its own verdict; then our raw evidence speaks instead of its wording.
-  const trustVerdict = result.verdict?.confirmed !== false || derived.evidence.length === 0;
-  const title = trustVerdict && result.verdict?.bugTitle ? result.verdict.bugTitle : `${label}: ${derived.offender ?? unit.flow}`;
+  // Kane sometimes fails an assertion but doubts its own verdict; then its wording is not shown, our raw evidence is.
+  const trustVerdict = result.verdict?.confirmed !== false;
+  const title =
+    trustVerdict && result.verdict?.bugTitle
+      ? result.verdict.bugTitle
+      : derived.offender
+        ? `${label}: ${derived.offender}`
+        : `${label} check failed in the ${unit.flow} flow`;
+  const evidenceText = derived.evidence.length > 0 ? ` Evidence: ${derived.evidence.join("; ")}.` : "";
   const reason = trustVerdict
     ? result.verdict?.rootCause ?? result.reason ?? result.summary
-    : `Kane's check failed: ${assertion.replace(/^assert that /, "")} Evidence: ${derived.evidence.join("; ")}.`;
+    : `Kane's check failed: ${assertion.replace(/^assert that /, "")}${evidenceText}`;
   return {
     id: unit.id,
     check: unit.check,

@@ -15,7 +15,7 @@ Kane CLI 0.10.4, model v16-alpha, against `examples/shop` (production build on :
 
 - network: `assert that no network request in this step returned a status of 500 or higher.`
 - console: `assert that there is no console message at level 'error' other than 'Failed to load resource' messages.` (The exclusion is needed: a 5xx also logs "Failed to load resource", which belongs to the network check.)
-- cookies: `assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.`
+- cookies: `assert that at least one cookie is set. Then assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.` (The "at least one cookie" sentence stops a vacuous pass when Kane reads the jar before the session cookie exists. That was seen in the first e2e scan.)
 - storage: `assert that no localStorage key contains 'token', 'secret' or 'api_key'. Then assert that no localStorage value starts with 'sk_live_', 'sk_test_' or 'eyJ'.`
 - env-leak: `assert that no network request in this step went to a host, other than {appHost}, that contains 'staging', 'localhost', '127.0.0.1', 'dev.' or 'internal'.`
 - vitals: `assert that every network request of type document, image, fetch or xhr in this step finished in under {slowMs} ms.`

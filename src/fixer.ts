@@ -123,6 +123,7 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
         const files = await changedFiles(root);
         if (!agent.ok) {
           await revertAll(root);
+          if (configChanged()) writeFileSync(config.configPath, configText);
           record({ attempt, files, verdict: "error", note: agent.note });
           continue;
         }

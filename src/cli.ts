@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
+import { stopAllApps } from "./app.js";
 import { loadConfig } from "./config.js";
 import { fixAll } from "./fixer.js";
 import { runInit } from "./init.js";
@@ -142,5 +143,11 @@ const invokedDirectly = (() => {
 })();
 
 if (invokedDirectly) {
+  const onSignal = (sig: NodeJS.Signals) => {
+    process.stderr.write(`\nleakproof: ${sig} received, stopping the app\n`);
+    void stopAllApps().finally(() => process.exit(130));
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   main(process.argv).then((c) => process.exit(c));
 }

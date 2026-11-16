@@ -110,6 +110,45 @@ describe("fixAll", () => {
   });
 });
 
+describe("fixAll with a start command", () => {
+  it("records an error and reverts when the agent's change breaks the app start, then keeps going", async () => {
+    server.close();
+    const probe = createServer();
+    await new Promise<void>((r) => probe.listen(0, () => r()));
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise((r) => probe.close(r));
+    writeRepo(`http://127.0.0.1:${port}`, "cookies");
+    const start = `node -e "if (require('fs').readFileSync('app.js','utf8').includes('broken')) { console.error('build failed'); process.exit(1) } require('http').createServer((q,s)=>s.end('ok')).listen(${port})"`;
+    writeFileSync(join(repo, "leakproof.yml"), readFileSync(join(repo, "leakproof.yml"), "utf8").replace(/^env:/m, `start: ${JSON.stringify(start)}\nenv:`));
+    git("add", "-A");
+    git("commit", "-qm", "start command");
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    const log = useFakeClaude([{ write: { path: "app.js", content: "broken\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config());
+    const attempts = report.outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["error", "fixed"]);
+    expect(attempts[0].note).toMatch(/failed to start/);
+    expect(claudeCalls(log)[1].prompt).toContain("build failed");
+    expect(readFileSync(join(repo, "app.js"), "utf8")).toBe("fixed\n");
+    expect(clean()).toBe("");
+  }, 60000);
+
+  it("leaves no fix branch behind when the app cannot start at all", async () => {
+    server.close();
+    const probe = createServer();
+    await new Promise<void>((r) => probe.listen(0, () => r()));
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise((r) => probe.close(r));
+    writeRepo(`http://127.0.0.1:${port}`, "cookies");
+    writeFileSync(join(repo, "leakproof.yml"), readFileSync(join(repo, "leakproof.yml"), "utf8").replace(/^env:/m, `start: "node -e 'process.exit(1)'"\nenv:`));
+    git("add", "-A");
+    git("commit", "-qm", "bad start");
+    useFakeKane({});
+    await expect(fixAll(config())).rejects.toThrow();
+    expect(git("rev-parse", "--abbrev-ref", "HEAD")).toBe("main");
+  }, 30000);
+});
+
 describe("buildFixPrompt", () => {
   const finding: Finding = {
     id: "checkout:cookies", check: "cookies", flow: "checkout", assertion: "assert that no cookies are set without the HttpOnly flag.",

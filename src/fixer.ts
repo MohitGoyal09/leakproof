@@ -95,12 +95,25 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
       return true;
     }
   };
-  await createBranch(root, fixBranchName());
-
   let app: AppHandle = await startApp(config);
+  try {
+    await createBranch(root, fixBranchName());
+  } catch (error: unknown) {
+    await app.stop();
+    throw error;
+  }
   const restart = async () => {
     await app.stop();
     app = await startApp(config);
+  };
+  /** Restart after an agent edit. Returns why the app failed to start, or undefined when it is up. */
+  const restartAfterEdit = async (): Promise<string | undefined> => {
+    try {
+      await restart();
+      return undefined;
+    } catch (error: unknown) {
+      return redactSecrets(error instanceof Error ? error.message : String(error), Object.values(config.secrets));
+    }
   };
 
   try {
@@ -138,7 +151,15 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           record({ attempt, files, verdict: "rejected", note: `the agent edited ${protectedPath}` });
           continue;
         }
-        await restart();
+        const startError = await restartAfterEdit();
+        if (startError) {
+          await revertAll(root);
+          if (configChanged()) writeFileSync(config.configPath, configText);
+          await restart();
+          last = { status: "error", exitCode: 2, summary: `The app failed to start after your change: ${startError}`, finalState: {} };
+          record({ attempt, files, verdict: "error", note: "the app failed to start after the change" });
+          continue;
+        }
         const { unit, result } = await runUnit(config, finding.id);
         if (result.status === "passed") {
           await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`);

@@ -58,3 +58,28 @@ describe("startApp", () => {
     await expect(waitForReady(url, 600)).rejects.toThrow(AppNotReadyError);
   });
 });
+
+describe("startApp safety", () => {
+  it("refuses to start when something already answers at the url", async () => {
+    const url = await listen();
+    await expect(startApp(config(url, "node -e 0"), 2000)).rejects.toThrow(/already running/);
+  });
+
+  it("stop() kills a server that ignores SIGTERM and waits until the port is free", async () => {
+    const port = await freePort();
+    const url = `http://127.0.0.1:${port}`;
+    const start = `node -e "process.on('SIGTERM',()=>{}); require('http').createServer((q,s)=>s.end('ok')).listen(${port})"`;
+    const app = await startApp(config(url, start), 10000);
+    await app.stop();
+    await expect(waitForReady(url, 400)).rejects.toThrow(AppNotReadyError);
+  }, 20000);
+
+  it("stopAllApps stops every running app (used on Ctrl-C)", async () => {
+    const { stopAllApps } = await import("../src/app.js");
+    const port = await freePort();
+    const url = `http://127.0.0.1:${port}`;
+    await startApp(config(url, `node -e "require('http').createServer((q,s)=>s.end('ok')).listen(${port})"`), 10000);
+    await stopAllApps();
+    await expect(waitForReady(url, 400)).rejects.toThrow(AppNotReadyError);
+  });
+});

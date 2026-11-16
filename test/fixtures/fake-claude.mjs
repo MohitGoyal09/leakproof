@@ -16,5 +16,5 @@ if (action.write) {
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, action.write.content);
 }
-process.stdout.write(JSON.stringify({ type: "result", result: "done" }));
+process.stdout.write(action.stdout ?? JSON.stringify({ type: "result", result: "done" }));
 process.exit(action.exit ?? 0);

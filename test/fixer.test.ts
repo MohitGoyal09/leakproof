@@ -110,6 +110,16 @@ describe("fixAll", () => {
   });
 });
 
+describe("fixAll when Claude Code is logged out", () => {
+  it("stops at once with a login hint instead of burning attempts", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    const log = useFakeClaude([{ exit: 1, stdout: JSON.stringify({ is_error: true, result: "Not logged in · Please run /login" }) }]);
+    await expect(fixAll(config())).rejects.toThrow(/Claude Code is not logged in.*claude/);
+    expect(claudeCalls(log)).toHaveLength(1);
+    expect(clean()).toBe("");
+  });
+});
+
 describe("fixAll with a start command", () => {
   it("records an error and reverts when the agent's change breaks the app start, then keeps going", async () => {
     server.close();

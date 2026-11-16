@@ -14,6 +14,13 @@ export class DirtyTreeError extends Error {
   override name = "DirtyTreeError";
 }
 
+export class AgentAuthError extends Error {
+  override name = "AgentAuthError";
+  constructor() {
+    super("Claude Code is not logged in. Open a terminal, run: claude, then type /login. After that, run leakproof fix again.");
+  }
+}
+
 export interface FixOptions {
   maxAttempts?: number;
   agentTimeoutMs?: number;
@@ -73,6 +80,10 @@ export async function runAgent(dir: string, prompt: string, timeoutMs = AGENT_TI
   });
   if ((res as { code?: string }).code === "ENOENT") return { ok: false, note: "claude CLI not found" };
   if (res.timedOut) return { ok: false, note: `agent timed out after ${Math.round(timeoutMs / 1000)} s` };
+  // Only a failed run counts: a successful agent may well talk about "not logged in" users while fixing a login page.
+  if (res.exitCode !== 0 && /not logged in|please run \/login|invalid api key/i.test(`${String(res.stdout)}\n${String(res.stderr)}`)) {
+    throw new AgentAuthError();
+  }
   if (res.exitCode !== 0) return { ok: false, note: `agent exited with code ${res.exitCode}` };
   return { ok: true };
 }
@@ -133,7 +144,14 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
 
       for (let attempt = 1; attempt <= maxAttempts && !fixed; attempt++) {
         opts.onEvent?.({ type: "attempt", finding, attempt });
-        const agent = await runAgent(root, buildFixPrompt(finding, flow, last, Object.values(config.secrets)), opts.agentTimeoutMs);
+        let agent: { ok: boolean; note?: string };
+        try {
+          agent = await runAgent(root, buildFixPrompt(finding, flow, last, Object.values(config.secrets)), opts.agentTimeoutMs);
+        } catch (error: unknown) {
+          await revertAll(root);
+          if (configChanged()) writeFileSync(config.configPath, configText);
+          throw error;
+        }
         const files = await changedFiles(root);
         if (!agent.ok) {
           await revertAll(root);

@@ -54,11 +54,22 @@ npm install -g @testmuai/kane-cli
 kane-cli login
 ```
 
+Run it straight from GitHub (it builds on install):
+
 ```bash
-npx leakproof init     # writes leakproof.yml
-npx leakproof scan     # find leaks, write .leakproof/report.html
-npx leakproof fix      # fix each leak with Claude Code, prove each fix with Kane
+npx github:MohitGoyal09/leakproof init     # writes leakproof.yml
+npx github:MohitGoyal09/leakproof scan     # find leaks, write .leakproof/report.html
+npx github:MohitGoyal09/leakproof fix      # fix each leak with Claude Code, prove each fix with Kane
 ```
+
+Or clone it:
+
+```bash
+git clone https://github.com/MohitGoyal09/leakproof && cd leakproof
+npm install && npm link    # gives you the `leakproof` command
+```
+
+`fix` needs the Claude Code CLI logged in (run `claude`, then `/login`).
 
 ## leakproof.yml
 

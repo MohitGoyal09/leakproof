@@ -19,6 +19,24 @@ leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
   6 leaks found  ·  141 credits  ·  2m 4s
 ```
 
+Then `leakproof fix` on the same shop, a real run with Claude Code (Opus 5.5):
+
+```
+  Exhibit A  Hidden server errors · home  Recommendations API returns 500 on home page load
+    attempt 1  edited app/api/recommendations/route.ts  → Kane re-run passed  FIXED
+  ...
+  Re-scanning every flow to catch regressions
+
+  PASS   home          Hidden server errors
+  PASS   home          Slow requests
+  PASS   checkout      Cookie flags
+  PASS   checkout      Secrets in storage
+  PASS   add-to-cart   Console errors
+  PASS   checkout      Environment leaks
+
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  207 credits  ·  16m 1s
+```
+
 ## What it checks
 
 | Check | What it catches | What Kane looks at |
@@ -69,7 +87,7 @@ git clone https://github.com/MohitGoyal09/leakproof && cd leakproof
 npm install && npm link    # gives you the `leakproof` command
 ```
 
-`fix` needs the Claude Code CLI logged in (run `claude`, then `/login`).
+`fix` needs the Claude Code CLI logged in (run `claude`, then `/login`). To run the agent another way (a different account, model or tool list), point `LEAKPROOF_CLAUDE_BIN` at a script that passes its arguments on to `claude`.
 
 ## leakproof.yml
 
@@ -96,6 +114,7 @@ Steps are plain English. Checks whose browser capture resets every step (`networ
 ```bash
 bash scripts/demo.sh scan   # 6 leaks
 bash scripts/demo.sh fix    # 6 → 0, each fix proven by Kane
+bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 ```
 
 ## Safety rules
@@ -108,7 +127,7 @@ bash scripts/demo.sh fix    # 6 → 0, each fix proven by Kane
 
 ## Cost
 
-Each check is one Kane run of about 7–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 120–140 credits.
+Each check is one Kane run of about 7–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 120–140 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 207 credits and took 16 minutes.
 
 ## Development
 

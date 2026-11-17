@@ -20,7 +20,7 @@ cd "$DEMO"
 if [ "$MODE" = "control" ]; then
   patch -p3 --silent < "$ROOT/examples/shop.fixed.patch"
 fi
-printf '.leakproof/\nnode_modules/\n.next/\n' > .gitignore
+printf '.leakproof/\nnode_modules/\n.next/\n*.tsbuildinfo\n.impeccable/\n' > .gitignore
 git init -q -b main
 git add -A
 git -c user.name="Leakproof Demo" -c user.email="demo@leakproof.local" commit -qm "Driftwood Supply"

@@ -123,6 +123,19 @@ describe("fixAll", () => {
     expect(kaneCalls(kane)).toHaveLength(3);
   });
 
+  it("rejects the attempt when a changed gitignored file cannot be put back", async () => {
+    writeFileSync(join(repo, ".gitignore"), ".leakproof/\nbig.bin\n");
+    git("add", "-A");
+    git("commit", "-qm", "ignore big");
+    writeFileSync(join(repo, "big.bin"), Buffer.alloc(1_100_000, 1));
+    const kane = useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "big.bin", content: "small\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config());
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+    expect(report.outcomes![0].attempts[0].note).toMatch(/big\.bin/);
+    expect(kaneCalls(kane)).toHaveLength(3);
+  });
+
   it("reverts the agent's edit when Kane fails hard during the re-run", async () => {
     useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "infra", exit: 1, stderr: "Error: not logged in. Run kane-cli login" }] });
     useFakeClaude([{ write: { path: "app.js", content: "half\n" } }]);

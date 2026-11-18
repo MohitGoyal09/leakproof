@@ -149,7 +149,7 @@ Each check is one Kane run of about 7â€“30 credits (about 20 on average) and 50â
 
 ```bash
 npm install
-npm test          # 112 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 113 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

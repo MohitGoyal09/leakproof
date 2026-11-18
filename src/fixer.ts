@@ -182,9 +182,12 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           const guarded = [...files.filter((f) => f === protectedPath || isBuildFile(f)), ...(configChanged() && !files.includes(protectedPath) ? [protectedPath] : [])];
           const hidden = await ignoredChanges(root, output, ignored);
           restoreIgnored(root, ignored, hidden);
-          if (guarded.length > 0) {
+          // Fail closed: a large ignored file has no saved copy, so a change to it cannot be undone.
+          const stuck = await ignoredChanges(root, output, ignored);
+          if (guarded.length > 0 || stuck.length > 0) {
             await undo();
-            record({ attempt, files, verdict: "rejected", note: `the agent edited ${guarded.join(", ")}` });
+            const note = guarded.length > 0 ? `the agent edited ${guarded.join(", ")}` : `the agent changed gitignored files that cannot be put back: ${stuck.join(", ")}`;
+            record({ attempt, files, verdict: "rejected", note });
             continue;
           }
           if (files.length === 0) {

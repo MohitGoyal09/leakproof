@@ -126,7 +126,7 @@ bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 
 - `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix.
 - The agent may not edit `leakproof.yml`, `package.json`, lockfiles, `tsconfig*.json` or `*.config.*` files. If it does, the attempt is rejected and reverted.
-- The agent may not hide a fix in gitignored files (such as `.env.local`). Leakproof snapshots them before each attempt, rejects the attempt if they changed, and puts them back. Build output and `node_modules` are not watched.
+- A fix hidden in gitignored files (such as `.env.local`) cannot pass: Leakproof snapshots them before each attempt and puts them back before Kane re-checks, since they would never reach the commit. Build output and `node_modules` are not watched.
 - If Kane or the agent fails hard mid-fix (for example a logged-out CLI), or you press Ctrl-C, the unproven edit is reverted.
 - A failed attempt is reverted before the next one. After 3 attempts the leak is reported as still leaking.
 - Credentials go to Kane through a temporary variables file (mode 0600, deleted after the run, also on Ctrl-C). Their values are masked (as typed, JSON-escaped and URL-encoded) in prompts, logs, the terminal and the report. Screenshots in the evidence pack can still show what the page displayed.

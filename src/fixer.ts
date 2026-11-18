@@ -176,16 +176,18 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
             record({ attempt, files, verdict: "error", note: agent.note });
             continue;
           }
-          const hidden = await ignoredChanges(root, output, ignored);
+          // Gitignored files never reach the commit, so put them back before Kane looks: a fix hidden there cannot pass.
           const guarded = [...files.filter((f) => f === protectedPath || isBuildFile(f)), ...(configChanged() && !files.includes(protectedPath) ? [protectedPath] : [])];
-          if (hidden.length > 0 || guarded.length > 0) {
+          const hidden = await ignoredChanges(root, output, ignored);
+          restoreIgnored(root, ignored, hidden);
+          if (guarded.length > 0) {
             await undo();
-            const what = guarded.length > 0 ? `the agent edited ${guarded.join(", ")}` : `the agent changed ignored files: ${hidden.join(", ")}`;
-            record({ attempt, files: [...files, ...hidden], verdict: "rejected", note: what });
+            record({ attempt, files, verdict: "rejected", note: `the agent edited ${guarded.join(", ")}` });
             continue;
           }
           if (files.length === 0) {
-            record({ attempt, files, verdict: "still-failing", note: "the agent changed no files" });
+            const note = hidden.length > 0 ? `the agent changed only gitignored files, which were put back: ${hidden.join(", ")}` : "the agent changed no files";
+            record({ attempt, files, verdict: "still-failing", note });
             continue;
           }
           const startError = await restartAfterEdit();

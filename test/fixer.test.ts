@@ -102,7 +102,7 @@ describe("fixAll", () => {
     expect(kaneCalls(kane)).toHaveLength(3);
   });
 
-  it("rejects and removes a change hidden in a gitignored file", async () => {
+  it("puts back gitignored files before Kane looks, so a fix hidden there cannot pass", async () => {
     writeFileSync(join(repo, ".gitignore"), ".leakproof/\n.env*\nkeep.log\n");
     git("add", "-A");
     git("commit", "-qm", "ignore env");
@@ -115,8 +115,8 @@ describe("fixAll", () => {
       { write: { path: "app.js", content: "fixed\n" } },
     ]);
     const report = await fixAll(config(), { maxAttempts: 4 });
-    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["rejected", "rejected", "rejected", "fixed"]);
-    expect(report.outcomes![0].attempts[0].note).toMatch(/\.env\.local/);
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["still-failing", "still-failing", "still-failing", "fixed"]);
+    expect(report.outcomes![0].attempts[0].note).toMatch(/gitignored.*\.env\.local/);
     expect(existsSync(join(repo, ".env.local"))).toBe(false);
     expect(readFileSync(join(repo, "keep.log"), "utf8")).toBe("original\n");
     expect(existsSync(join(repo, "src/.leakproof/hack.js"))).toBe(false);

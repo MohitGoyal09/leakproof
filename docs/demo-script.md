@@ -24,7 +24,60 @@ We beat that with a visible count (6 → 0), real evidence for every leak, one f
 - Before recording, run `bash scripts/demo.sh control` once to show the fixed shop scores 0 (the false-positive control). Optional 5-second cut.
 - Add YouTube chapters: 0:00 The lie · 0:30 Scan · 1:20 Evidence · 1:45 Fix loop · 2:55 Result · 3:20 Try it.
 
-## Launch posts (2 required)
+## Launch posts (2 required, post before 19 Nov 23:59 IST)
 
-- **X:** "Your AI agent says the app works. The page renders fine. Leakproof found 6 leaks it couldn't see: an HttpOnly-less session cookie, a live key in localStorage, a hidden 500, a staging call… Claude Code fixed them, Kane CLI proved every fix. 6 → 0. [video] [repo] #KaneCLIHackDay"
-- **LinkedIn / Hacker News (Show HN):** "Show HN: Leakproof – find the leaks a screenshot can't see, and make Kane prove every AI fix". Two short paragraphs on the problem (agents verify how a page looks, not what it leaks), how it works, and the 6 → 0 demo with real evidence. Link the repo and the video.
+Rules: at least 2 different public posts on Hacker News, X, Reddit or LinkedIn. Tag: #KaneCLIHackDay. Replace `[video]` with the YouTube link.
+
+### Post 1: X (main post, under 280 characters)
+
+```
+AI agents check how a page looks, not what it leaks.
+
+Leakproof runs real user flows with Kane CLI, hands each leak to Claude Code, and keeps a fix only when Kane's re-run passes.
+
+Demo shop: 6 leaks → 0.
+
+[video]
+github.com/MohitGoyal09/leakproof
+#KaneCLIHackDay
+```
+
+Reply to it (thread):
+
+```
+The 6 leaks, on a page that renders fine:
+· cookie without HttpOnly/Secure
+· JWT + sk_live key in localStorage
+· a 500 behind a fallback UI
+· TypeError on add to cart
+· checkout calls staging
+· 1.5 s server render
+
+Real run: 207 Kane credits, 16 min. Hand-fixed control: 0 leaks.
+```
+
+### Post 2: LinkedIn
+
+```
+My AI coding agent told me the shop was done. The page looked perfect.
+
+It was leaking 6 ways. The session cookie could be read by any script. A login token and a live payment key sat in localStorage. The recommendations API returned 500 behind a fallback, so nobody saw it. Add to cart threw an error. Checkout still called a staging server. The home page took 1.5 seconds before the first byte.
+
+None of this shows up in a screenshot, so an agent that "checks its work" by looking at the page misses all of it.
+
+So I built Leakproof for the #KaneCLIHackDay hackathon:
+1. Kane CLI walks your real user flows in a real browser and checks cookies, storage, network, console, hosts and timings.
+2. Each leak goes to Claude Code with Kane's evidence (the HAR line, the console error, the screenshot).
+3. A fix counts only when Kane re-runs the same check and it passes. Then a full re-scan catches regressions.
+
+Real run on the demo shop: 6 leaks → 0, each fix proven by Kane, 207 credits, 16 minutes. On a hand-fixed copy it reports 0, so it does not invent leaks.
+
+Demo: [video]
+Code (MIT): https://github.com/MohitGoyal09/leakproof
+```
+
+### Optional post 3: Hacker News (Show HN)
+
+Title: `Show HN: Leakproof – find the leaks a screenshot can't see, and make Kane prove every AI fix`
+URL: `https://github.com/MohitGoyal09/leakproof`
+First comment: the LinkedIn text without the hashtag, plus "Happy to answer questions about how the checks are phrased for Kane."

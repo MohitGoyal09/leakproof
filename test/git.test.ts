@@ -6,8 +6,9 @@ describe("parsePorcelain", () => {
     expect(parsePorcelain(" M app.js\0?? new/file.ts\0")).toEqual(["app.js", "new/file.ts"]);
   });
 
-  it("takes the new path of a rename and skips the original", () => {
-    expect(parsePorcelain("R  b.ts\0a.ts\0 M c.ts\0")).toEqual(["b.ts", "c.ts"]);
+  it("reports both paths of a rename, and only the new path of a copy", () => {
+    expect(parsePorcelain("R  b.ts\0a.ts\0 M c.ts\0")).toEqual(["b.ts", "a.ts", "c.ts"]);
+    expect(parsePorcelain("C  d.ts\0a.ts\0")).toEqual(["d.ts"]);
   });
 
   it("ignores Leakproof's own output folder, and only that one", () => {

@@ -139,6 +139,7 @@ bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 - The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, `sessionStorage`, hosts named `qa.` or `uat`).
 - Step-scoped checks pass when nothing matching happens in the step. An agent could pass `network` or `console` by removing the request instead of fixing it. Read the fix commits.
 - Each fix is re-checked alone. Other checks are re-run only in the final scan, which reports regressions but does not revert them.
+- Gitignored files are compared with their state before the run. A changed gitignored file over 1 MB cannot be put back, so the run stops (this includes large logs or databases your app writes inside the repo). Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The evidence so far is one demo shop with six planted leaks, one real fix run and one hand-fixed control. Kane is non-deterministic, so a run can differ.
 
 ## Cost

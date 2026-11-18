@@ -77,13 +77,20 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
   return redactSecrets(lines.join("\n"), secrets);
 }
 
+/** The agent process now running, so an interrupt can kill it before undoing its edits. */
+let activeAgent: { kill: (signal?: NodeJS.Signals) => boolean } | undefined;
+
 /** Run the coding agent headless in `dir`. ok=false on crash, timeout or missing binary. */
 export async function runAgent(dir: string, prompt: string, timeoutMs = AGENT_TIMEOUT_MS): Promise<{ ok: boolean; note?: string }> {
-  const res = await execa(claudeBin(), ["-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "json"], {
+  const child = execa(claudeBin(), ["-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "json"], {
     cwd: dir,
     timeout: timeoutMs,
     reject: false,
     stdin: "ignore",
+  });
+  activeAgent = child;
+  const res = await child.finally(() => {
+    activeAgent = undefined;
   });
   if ((res as { code?: string }).code === "ENOENT") return { ok: false, note: "claude CLI not found" };
   if (res.timedOut) return { ok: false, note: `agent timed out after ${Math.round(timeoutMs / 1000)} s` };
@@ -98,9 +105,12 @@ export async function runAgent(dir: string, prompt: string, timeoutMs = AGENT_TI
 /** Revert hook for an interrupted run (Ctrl-C), set while the agent's edits are uncommitted. */
 let undoInFlight: (() => Promise<void>) | undefined;
 
-/** Called by the CLI on SIGINT/SIGTERM: throw away the agent's uncommitted edits. */
+/** Called by the CLI on SIGINT/SIGTERM: stop the agent, then throw away its uncommitted edits (once). */
 export async function interruptFix(): Promise<void> {
-  await undoInFlight?.();
+  const undo = undoInFlight;
+  undoInFlight = undefined;
+  activeAgent?.kill("SIGKILL");
+  await undo?.();
 }
 
 /** Scan, have the agent fix each finding, prove each fix with a Kane re-run, commit it, then re-scan. */
@@ -124,6 +134,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
       return true;
     }
   };
+  // One baseline for the whole run: every attempt is compared with, and put back to, the state before any agent ran.
+  const ignored = await snapshotIgnored(root, output);
   let app: AppHandle = await startApp(config);
   try {
     await createBranch(root, fixBranchName());
@@ -162,7 +174,6 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
 
       for (let attempt = 1; attempt <= maxAttempts && !fixed; attempt++) {
         opts.onEvent?.({ type: "attempt", finding, attempt });
-        const ignored = await snapshotIgnored(root, output);
         /** Throw away everything the agent did: tracked edits, new files, ignored files and the config. */
         const undo = async () => {
           restoreIgnored(root, ignored, await ignoredChanges(root, output, ignored));
@@ -182,12 +193,12 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           const guarded = [...files.filter((f) => f === protectedPath || isBuildFile(f)), ...(configChanged() && !files.includes(protectedPath) ? [protectedPath] : [])];
           const hidden = await ignoredChanges(root, output, ignored);
           restoreIgnored(root, ignored, hidden);
-          // Fail closed: a large ignored file has no saved copy, so a change to it cannot be undone.
+          // Fail closed: a large ignored file has no saved copy, so a change to it cannot be undone. Stop the run.
           const stuck = await ignoredChanges(root, output, ignored);
-          if (guarded.length > 0 || stuck.length > 0) {
+          if (stuck.length > 0) throw new Error(`The agent changed gitignored files that Leakproof cannot put back: ${stuck.join(", ")}. Restore them by hand.`);
+          if (guarded.length > 0) {
             await undo();
-            const note = guarded.length > 0 ? `the agent edited ${guarded.join(", ")}` : `the agent changed gitignored files that cannot be put back: ${stuck.join(", ")}`;
-            record({ attempt, files, verdict: "rejected", note });
+            record({ attempt, files, verdict: "rejected", note: `the agent edited ${guarded.join(", ")}` });
             continue;
           }
           if (files.length === 0) {
@@ -218,7 +229,10 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           }
         } catch (error: unknown) {
           // Agent login, Kane login or a missing binary: stop, but never leave half-made edits behind.
-          await undo();
+          // A failing undo must not hide the error that stopped the run.
+          await undo().catch((undoError: unknown) => {
+            process.stderr.write(`leakproof: could not undo the agent's edits: ${undoError instanceof Error ? undoError.message : String(undoError)}\n`);
+          });
           throw error;
         } finally {
           undoInFlight = undefined;

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ignoredFiles } from "./git.js";
@@ -12,7 +13,10 @@ export function isBuildFile(path: string): boolean {
 
 // Build output and dependencies change when the agent builds or tests its work, so they are not watched.
 // ponytail: node_modules is not watched; a patched dependency would pass unseen. Hash it if that ever matters.
-const SKIP_DIRS = new Set(["node_modules", ".git", ".next", "dist", "build", "out", "coverage", ".turbo", ".cache", ".vercel"]);
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", ".next", "dist", "build", "out", "coverage", ".turbo", ".cache", ".vercel",
+  ".venv", "venv", "__pycache__", "target", "vendor", ".yarn", ".pnpm-store",
+]);
 const MAX_SAVED_BYTES = 1_000_000;
 
 interface Entry {
@@ -30,7 +34,7 @@ function entry(root: string, path: string): Entry | undefined {
   try {
     const st = statSync(join(root, path));
     const content = st.size <= MAX_SAVED_BYTES ? readFileSync(join(root, path)) : undefined;
-    return { sig: content ? content.toString("base64") : `${st.size}:${st.mtimeMs}`, content };
+    return { sig: content ? createHash("sha1").update(content).digest("hex") : `${st.size}:${st.mtimeMs}`, content };
   } catch {
     return undefined;
   }

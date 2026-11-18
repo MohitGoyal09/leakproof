@@ -20,7 +20,11 @@ export function parsePorcelain(out: string, outputDir = OUTPUT_DIR): string[] {
     const entry = parts[i];
     if (entry.length < 4) continue;
     paths.push(entry.slice(3));
-    if (/[RC]/.test(entry.slice(0, 2))) i++;
+    // A rename also removes the original path, so report it too (renaming package.json away is an edit to it).
+    if (/[RC]/.test(entry.slice(0, 2))) {
+      i++;
+      if (entry[0] === "R" && parts[i]) paths.push(parts[i]);
+    }
   }
   return paths.filter((path) => path !== outputDir && !path.startsWith(`${outputDir}/`));
 }

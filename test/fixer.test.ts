@@ -39,6 +39,20 @@ beforeEach(async () => {
 afterEach(() => server.close());
 
 describe("fixAll", () => {
+  it("checks the agent CLI exists before spending Kane credits", async () => {
+    const kane = useFakeKane({});
+    const saved = process.env.LEAKPROOF_CLAUDE_BIN;
+    process.env.LEAKPROOF_CLAUDE_BIN = join(repo, "no-such-claude");
+    try {
+      await expect(fixAll(config())).rejects.toThrow(/no-such-claude.*not found/);
+      expect(kaneCalls(kane)).toHaveLength(0);
+      expect(git("rev-parse", "--abbrev-ref", "HEAD")).toBe("main");
+    } finally {
+      if (saved === undefined) delete process.env.LEAKPROOF_CLAUDE_BIN;
+      else process.env.LEAKPROOF_CLAUDE_BIN = saved;
+    }
+  });
+
   it("refuses a dirty tree", async () => {
     writeFileSync(join(repo, "stray.txt"), "x");
     useFakeKane({});

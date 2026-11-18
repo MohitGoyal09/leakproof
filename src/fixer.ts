@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { relative } from "node:path";
+import { accessSync, constants, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
@@ -41,6 +41,19 @@ const AGENT_TIMEOUT_MS = 600_000;
 
 function claudeBin(): string {
   return process.env.LEAKPROOF_CLAUDE_BIN || "claude";
+}
+
+/** True when `bin` is an executable path, or an executable on PATH. Checked before any Kane credits are spent. */
+function canRun(bin: string): boolean {
+  const candidates = bin.includes("/") ? [bin] : (process.env.PATH ?? "").split(delimiter).filter(Boolean).map((dir) => join(dir, bin));
+  return candidates.some((path) => {
+    try {
+      accessSync(path, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** The prompt the coding agent gets for one finding. Contains evidence and placeholders, never secret values. */
@@ -122,6 +135,9 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
   const output = outputDir ? `${outputDir}/.leakproof` : ".leakproof";
   if (!(await isClean(root, output))) {
     throw new DirtyTreeError("Your git tree has uncommitted changes. Please commit or stash them first, so every agent fix is its own reviewable commit.");
+  }
+  if (!canRun(claudeBin())) {
+    throw new Error(`The coding agent "${claudeBin()}" was not found or is not executable. Install Claude Code, or fix LEAKPROOF_CLAUDE_BIN.`);
   }
   const protectedPath = relative(realRoot, realpathSync(config.configPath));
   // Hash the config too, so the guard holds even when git ignores leakproof.yml.

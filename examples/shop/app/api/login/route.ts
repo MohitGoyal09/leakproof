@@ -14,7 +14,6 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid credentials" }, { status: 401 });
   }
   const token = fakeJwt(username);
-  // LEAK (cookies): session cookie readable by JavaScript and sent over plain http.
   (await cookies()).set("session", token, { httpOnly: false, sameSite: "lax", path: "/" });
   return Response.json({ token });
 }

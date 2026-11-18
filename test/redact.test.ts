@@ -25,6 +25,16 @@ const config = (): Config => ({
 });
 
 describe("redactSecrets", () => {
+  it("masks a longer secret whole even when a shorter one is its prefix", () => {
+    expect(redactSecrets("pass demo123", ["demo", "demo123"])).toBe("pass •••");
+  });
+
+  it("masks JSON-escaped and URL-encoded forms of a secret", () => {
+    const secret = 'p@ss "w\\rd';
+    expect(redactSecrets(JSON.stringify({ v: secret }), [secret])).not.toContain("w\\\\rd");
+    expect(redactSecrets(`q=${encodeURIComponent(secret)}`, [secret])).toBe("q=•••");
+  });
+
   it("masks every secret value of 3+ characters", () => {
     expect(redactSecrets("user demo pass hunter2-secret", ["hunter2-secret", "ab"])).toBe("user demo pass •••");
   });

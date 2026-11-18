@@ -63,6 +63,11 @@ flowchart LR
 
 Every finding comes from a Kane verdict. Leakproof reads Kane's `.evidence` pack for the exact readings: the HAR line, the console error and the screenshot of the failing step. It never relies on the agent saying "done".
 
+How Kane and the agent talk:
+
+- **Kane → agent:** the failed assertion, the evidence from the pack, and Kane's diagnosis and suggestion go into the agent's prompt, marked as untrusted data.
+- **Agent → Kane:** every edit restarts the app and triggers a Kane re-run of the same check. A fail is reverted, and Kane's new verdict goes into the next prompt.
+
 ## Quick start
 
 You need Node 20+, [Kane CLI](https://www.testmuai.com/support/docs/kane-cli-introduction/) and, for `fix`, the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI.
@@ -120,10 +125,21 @@ bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 ## Safety rules
 
 - `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix.
-- The agent may not edit `leakproof.yml`. If it does, the attempt is rejected and reverted.
+- The agent may not edit `leakproof.yml`, `package.json`, lockfiles, `tsconfig*.json` or `*.config.*` files. If it does, the attempt is rejected and reverted.
+- The agent may not hide a fix in gitignored files (such as `.env.local`). Leakproof snapshots them before each attempt, rejects the attempt if they changed, and puts them back. Build output and `node_modules` are not watched.
+- If Kane or the agent fails hard mid-fix (for example a logged-out CLI), or you press Ctrl-C, the unproven edit is reverted.
 - A failed attempt is reverted before the next one. After 3 attempts the leak is reported as still leaking.
-- Credentials go to Kane through a temporary variables file (mode 0600, deleted after the run). They never appear in objectives, prompts, the terminal or the report.
+- Credentials go to Kane through a temporary variables file (mode 0600, deleted after the run, also on Ctrl-C). Their values are masked (as typed, JSON-escaped and URL-encoded) in prompts, logs, the terminal and the report. Screenshots in the evidence pack can still show what the page displayed.
 - Text from the scanned page is escaped in the HTML report and stripped of control characters in the terminal.
+- `leakproof.yml` is code: `start` runs in a shell, and `env` names the variables sent to Kane. Read a cloned project's config before you run it.
+- Without a `start` command, Leakproof cannot restart your app after an edit. Use a dev server with hot reload, or set `start`.
+
+## Limits
+
+- The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, `sessionStorage`, hosts named `qa.` or `uat`).
+- Step-scoped checks pass when nothing matching happens in the step. An agent could pass `network` or `console` by removing the request instead of fixing it. Read the fix commits.
+- Each fix is re-checked alone. Other checks are re-run only in the final scan, which reports regressions but does not revert them.
+- The evidence so far is one demo shop with six planted leaks, one real fix run and one hand-fixed control. Kane is non-deterministic, so a run can differ.
 
 ## Cost
 
@@ -133,7 +149,7 @@ Each check is one Kane run of about 7–30 credits (about 20 on average) and 50�
 
 ```bash
 npm install
-npm test          # 90+ tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 112 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

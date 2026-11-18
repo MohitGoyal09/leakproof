@@ -24,7 +24,6 @@ export default function Login() {
       return;
     }
     const { token } = await res.json();
-    // LEAK (storage): a session token and a payment key kept in localStorage.
     localStorage.setItem("auth_token", token);
     localStorage.setItem("stripe_key", "sk_live_demo123");
     router.push("/checkout");

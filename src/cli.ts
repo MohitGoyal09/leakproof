@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
 import { stopAllApps } from "./app.js";
 import { loadConfig } from "./config.js";
-import { fixAll } from "./fixer.js";
+import { fixAll, interruptFix } from "./fixer.js";
+import { removeVarsFiles } from "./kane.js";
 import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
 import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
@@ -53,6 +54,9 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
   const config = loadConfig(opts.config);
   const units = config.flows.reduce((n, f) => n + f.checks.length, 0);
   io.out(formatHeader(config.url, units, config.flows.length));
+  if (!config.start) {
+    io.err("  Warning: leakproof.yml has no start command, so Leakproof cannot restart your app after each edit. Kane only sees a fix if your app reloads code by itself (a dev server with hot reload).");
+  }
   const t0 = Date.now();
   let ref = 0;
   let current = "";
@@ -144,8 +148,9 @@ const invokedDirectly = (() => {
 
 if (invokedDirectly) {
   const onSignal = (sig: NodeJS.Signals) => {
-    process.stderr.write(`\nleakproof: ${sig} received, stopping the app\n`);
-    void stopAllApps().finally(() => process.exit(130));
+    process.stderr.write(`\nleakproof: ${sig} received, undoing unproven edits and stopping the app\n`);
+    removeVarsFiles();
+    void Promise.allSettled([interruptFix(), stopAllApps()]).finally(() => process.exit(130));
   };
   process.once("SIGINT", onSignal);
   process.once("SIGTERM", onSignal);

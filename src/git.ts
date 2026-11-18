@@ -13,7 +13,7 @@ export async function repoRoot(dir: string): Promise<string> {
 }
 
 /** Parse `git status --porcelain -z`: "XY path\0", with an extra "orig\0" after renames and copies. */
-export function parsePorcelain(out: string): string[] {
+export function parsePorcelain(out: string, outputDir = OUTPUT_DIR): string[] {
   const parts = out.split("\0");
   const paths: string[] = [];
   for (let i = 0; i < parts.length; i++) {
@@ -22,30 +22,38 @@ export function parsePorcelain(out: string): string[] {
     paths.push(entry.slice(3));
     if (/[RC]/.test(entry.slice(0, 2))) i++;
   }
-  return paths.filter((path) => !path.split("/").includes(OUTPUT_DIR));
+  return paths.filter((path) => path !== outputDir && !path.startsWith(`${outputDir}/`));
 }
 
-/** Files changed, added or untracked (not ignored) relative to the repo root, excluding Leakproof's own output. */
-export async function changedFiles(root: string): Promise<string[]> {
-  return parsePorcelain(await git(root, ["status", "--porcelain", "-z", "--untracked-files=all"], true));
+/**
+ * Files changed, added or untracked (not ignored) relative to the repo root, excluding Leakproof's own output.
+ * `outputDir` is that output folder relative to the root; only that exact folder is excluded.
+ */
+export async function changedFiles(root: string, outputDir = OUTPUT_DIR): Promise<string[]> {
+  return parsePorcelain(await git(root, ["status", "--porcelain", "-z", "--untracked-files=all"], true), outputDir);
 }
 
-export async function isClean(root: string): Promise<boolean> {
-  return (await changedFiles(root)).length === 0;
+export async function isClean(root: string, outputDir = OUTPUT_DIR): Promise<boolean> {
+  return (await changedFiles(root, outputDir)).length === 0;
 }
 
 /** Throw away every uncommitted change, keeping Leakproof's output folder. */
-export async function revertAll(root: string): Promise<void> {
+export async function revertAll(root: string, outputDir = OUTPUT_DIR): Promise<void> {
   await git(root, ["checkout", "--", "."]);
-  await git(root, ["clean", "-fd", "-e", OUTPUT_DIR]);
+  await git(root, ["clean", "-fd", "-e", `/${outputDir}/`]);
+}
+
+/** Ignored files, relative to the root. Git lists them; callers decide which to watch. */
+export async function ignoredFiles(root: string): Promise<string[]> {
+  return (await git(root, ["ls-files", "-z", "--others", "--ignored", "--exclude-standard"], true)).split("\0").filter(Boolean);
 }
 
 export async function createBranch(root: string, name: string): Promise<void> {
   await git(root, ["checkout", "-q", "-b", name]);
 }
 
-export async function commitAll(root: string, message: string): Promise<void> {
-  const files = await changedFiles(root);
+export async function commitAll(root: string, message: string, outputDir = OUTPUT_DIR): Promise<void> {
+  const files = await changedFiles(root, outputDir);
   await git(root, ["add", "--", ...files]);
   await git(root, ["commit", "-q", "-m", message]);
 }

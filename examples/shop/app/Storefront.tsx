@@ -12,25 +12,21 @@ export function Storefront() {
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    // LEAK (network): the API returns 500, the UI quietly falls back.
     fetch("/api/recommendations")
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: Product[]) => setPicks(data))
       .catch(() => setPicks(PRODUCTS.slice(0, 2)));
-    // LEAK (vitals): a promo banner appears late and shifts the page.
     const t = setTimeout(() => setShowBanner(true), 1500);
     return () => clearTimeout(t);
   }, []);
 
   function addToCart(product: Product) {
     setCount((c) => c + 1);
-    // LEAK (console): analytics is never loaded, so this throws.
     (window as unknown as { analytics: Analytics }).analytics.track("add_to_cart", { id: product.id });
   }
 
   return (
     <>
-      {/* LEAK (vitals): slow, unsized hero image. */}
       <img className="hero" src="/api/hero" alt="The spring collection: a stoneware mug, a wool throw, a brass lamp and an oak tray" />
       {showBanner && <p className="banner">Free shipping on orders over $50, through Sunday.</p>}
 

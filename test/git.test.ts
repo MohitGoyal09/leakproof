@@ -10,8 +10,9 @@ describe("parsePorcelain", () => {
     expect(parsePorcelain("R  b.ts\0a.ts\0 M c.ts\0")).toEqual(["b.ts", "c.ts"]);
   });
 
-  it("ignores Leakproof's own output folder", () => {
-    expect(parsePorcelain("?? .leakproof/report.html\0?? sub/.leakproof/x\0 M y.ts\0")).toEqual(["y.ts"]);
+  it("ignores Leakproof's own output folder, and only that one", () => {
+    expect(parsePorcelain("?? .leakproof/report.html\0?? sub/.leakproof/x\0 M y.ts\0")).toEqual(["sub/.leakproof/x", "y.ts"]);
+    expect(parsePorcelain("?? sub/.leakproof/x\0?? .leakproof/y\0", "sub/.leakproof")).toEqual([".leakproof/y"]);
   });
 
   it("keeps paths with spaces intact", () => {

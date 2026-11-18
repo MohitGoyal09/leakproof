@@ -4,7 +4,6 @@ import { useEffect } from "react";
 
 export default function Checkout() {
   useEffect(() => {
-    // LEAK (env-leak): production code still reports to a staging host.
     fetch("http://staging.localhost:3000/api/collect", { method: "POST", mode: "no-cors" }).catch(() => {});
   }, []);
 

@@ -105,10 +105,20 @@ export function parseNdjson(stdout: string, exitCode: number): KaneResult {
   };
 }
 
+/** Variables files that exist right now, so an interrupt can delete them (the finally block does not run on exit). */
+const liveVarsFiles = new Set<string>();
+
+/** Delete every variables file still on disk. Safe to call from a signal handler. */
+export function removeVarsFiles(): void {
+  for (const path of liveVarsFiles) rmSync(path, { force: true });
+  liveVarsFiles.clear();
+}
+
 async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Promise<KaneResult> {
   const bin = kaneBin();
   const varsPath = join(tmpdir(), `leakproof-vars-${randomUUID()}.json`);
   const vars = Object.fromEntries(Object.entries(opts.secrets).map(([k, value]) => [k, { value, secret: true }]));
+  liveVarsFiles.add(varsPath);
   writeFileSync(varsPath, JSON.stringify(vars), { mode: 0o600 });
   const timeoutS = opts.timeoutS ?? DEFAULT_TIMEOUT_S;
   try {
@@ -131,6 +141,7 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
     return result;
   } finally {
     rmSync(varsPath, { force: true });
+    liveVarsFiles.delete(varsPath);
   }
 }
 

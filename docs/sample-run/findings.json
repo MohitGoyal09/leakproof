@@ -1,0 +1,40 @@
+{
+  "startedAt": "2026-11-19T18:51:58.873Z",
+  "url": "http://localhost:3000",
+  "units": 6,
+  "results": [
+    {
+      "unit": "home:network",
+      "status": "passed",
+      "credits": 5.21737
+    },
+    {
+      "unit": "home:vitals",
+      "status": "passed",
+      "credits": 7.79287
+    },
+    {
+      "unit": "add-to-cart:console",
+      "status": "passed",
+      "credits": 19.176958
+    },
+    {
+      "unit": "checkout:cookies",
+      "status": "passed",
+      "credits": 6.000069999999999
+    },
+    {
+      "unit": "checkout:storage",
+      "status": "passed",
+      "credits": 17.4844245
+    },
+    {
+      "unit": "checkout:env-leak",
+      "status": "passed",
+      "credits": 28.83871
+    }
+  ],
+  "findings": [],
+  "errors": [],
+  "credits": 84.5
+}

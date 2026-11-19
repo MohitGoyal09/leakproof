@@ -58,7 +58,7 @@ So I built Leakproof for the #KaneCLIHackDay hackathon:
 2. Each leak goes to Claude Code with Kane's evidence (the HAR line, the console error, the screenshot).
 3. A fix counts only when Kane re-runs the same check and it passes. Then a full re-scan catches regressions.
 
-Real run on the demo shop: 6 leaks → 0, each fix proven by Kane, 207 credits, 16 minutes. On a hand-fixed copy it reports 0, so it does not invent leaks.
+Real run on the demo shop: 6 leaks → 0, each fix proven by Kane, 248 credits, 18 minutes. On a hand-fixed copy it reports 0, so it does not invent leaks.
 
 Demo: [video]
 Code (MIT): https://github.com/MohitGoyal09/leakproof

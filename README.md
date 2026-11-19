@@ -34,8 +34,10 @@ Then `leakproof fix` on the same shop, a real run with Claude Code (Opus 5.5):
   PASS   add-to-cart   Console errors
   PASS   checkout      Environment leaks
 
-  6 → 0 leaks  ·  6 fixes verified by Kane  ·  207 credits  ·  16m 1s
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  248 credits  ·  17m 35s
 ```
+
+The full output, the report, the screenshots and the agent's patch from this run are in [docs/sample-run](docs/sample-run/).
 
 ## What it checks
 
@@ -58,7 +60,9 @@ flowchart LR
   D --> E[Kane re-runs the same check]
   E -->|passes| F[Commit the fix on a new branch]
   E -->|still fails| D
-  F --> G[Full re-scan, then the before/after report]
+  F --> G[Full re-scan]
+  G -->|a leak the first scan missed| D
+  G --> H[Before/after report]
 ```
 
 Every finding comes from a Kane verdict. Leakproof reads Kane's `.evidence` pack for the exact readings: the HAR line, the console error and the screenshot of the failing step. It never relies on the agent saying "done".
@@ -67,6 +71,7 @@ How Kane and the agent talk:
 
 - **Kane → agent:** the failed assertion, the evidence from the pack, and Kane's diagnosis and suggestion go into the agent's prompt, marked as untrusted data.
 - **Agent → Kane:** every edit restarts the app and triggers a Kane re-run of the same check. A fail is reverted, and Kane's new verdict goes into the next prompt.
+- **Kane is non-deterministic.** A check can pass in one run and fail in the next. If the full re-scan finds a leak the first scan missed, that leak goes through the same fix loop, and Kane scans every flow one more time.
 
 ## Quick start
 
@@ -140,11 +145,11 @@ bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 - Step-scoped checks pass when nothing matching happens in the step. An agent could pass `network` or `console` by removing the request instead of fixing it. Read the fix commits.
 - Each fix is re-checked alone. Other checks are re-run only in the final scan, which reports regressions but does not revert them.
 - Gitignored files are compared with their state before the run. A changed gitignored file over 1 MB cannot be put back, so the run stops (this includes large logs or databases your app writes inside the repo). Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
-- The evidence so far is one demo shop with six planted leaks, one real fix run and one hand-fixed control. Kane is non-deterministic, so a run can differ.
+- The evidence so far is one demo shop with six planted leaks, real fix runs and one hand-fixed control. Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, which is why a missed leak now gets its own fix pass. A leak that both scans miss is not reported.
 
 ## Cost
 
-Each check is one Kane run of about 7–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 120–140 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 207 credits and took 16 minutes.
+Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 90–140 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 248 credits and took 18 minutes. The credit total counts every Kane run, the fix re-runs included.
 
 ## Development
 

@@ -71,6 +71,7 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
       }
       if (e.type === "attempt-result") io.out(formatAttempt(e.result, io.width));
       if (e.type === "rescan") io.out("\n  Re-scanning every flow to catch regressions\n");
+      if (e.type === "missed") io.out(`  Kane caught ${e.findings} leak${e.findings === 1 ? "" : "s"} the first scan missed. Fixing ${e.findings === 1 ? "it" : "them"} too.`);
     },
   });
   const html = `${outDir(config)}/report.html`;

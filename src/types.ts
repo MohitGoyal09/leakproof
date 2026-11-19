@@ -108,4 +108,6 @@ export interface FullReport {
   before: ScanReport;
   outcomes?: FindingOutcome[];
   after?: ScanReport;
+  /** Kane credits spent outside the first scan and the final scan: fix re-runs and any extra re-scan. */
+  extraCredits?: number;
 }

@@ -34,7 +34,8 @@ export type FixEvent =
   | { type: "scanned"; findings: number }
   | { type: "attempt"; finding: Finding; attempt: number }
   | { type: "attempt-result"; finding: Finding; result: FixAttempt }
-  | { type: "rescan" };
+  | { type: "rescan" }
+  | { type: "missed"; findings: number };
 
 const MAX_ATTEMPTS = 3;
 const AGENT_TIMEOUT_MS = 600_000;
@@ -174,11 +175,9 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
   };
 
   try {
-    const before = await scan(config, { manageApp: false, onResult: opts.onScanResult });
-    opts.onEvent?.({ type: "scanned", findings: before.findings.length });
-    const outcomes: FindingOutcome[] = [];
-
-    for (const finding of before.findings) {
+    let extraCredits = 0;
+    /** Have the agent fix one finding, up to maxAttempts; a fix counts only when Kane's re-run passes. */
+    const fixFinding = async (finding: Finding): Promise<FindingOutcome> => {
       const flow = config.flows.find((f) => f.name === finding.flow) as Flow;
       const attempts: FixAttempt[] = [];
       let last: KaneResult | undefined;
@@ -231,6 +230,7 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
             continue;
           }
           const { unit, result } = await runUnit(config, finding.id);
+          extraCredits += result.credits ?? 0;
           if (result.status === "passed") {
             await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`, output);
             record({ attempt, files, verdict: "fixed" });
@@ -254,13 +254,30 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           undoInFlight = undefined;
         }
       }
-      outcomes.push({ finding, attempts, fixed });
-    }
+      return { finding, attempts, fixed };
+    };
+    const rescan = async () => {
+      opts.onEvent?.({ type: "rescan" });
+      await restart();
+      return scan(config, { manageApp: false, onResult: opts.onScanResult });
+    };
 
-    opts.onEvent?.({ type: "rescan" });
-    await restart();
-    const after = await scan(config, { manageApp: false, onResult: opts.onScanResult });
-    const report: FullReport = { before, outcomes, after };
+    const before = await scan(config, { manageApp: false, onResult: opts.onScanResult });
+    opts.onEvent?.({ type: "scanned", findings: before.findings.length });
+    const outcomes: FindingOutcome[] = [];
+    for (const finding of before.findings) outcomes.push(await fixFinding(finding));
+
+    let after = await rescan();
+    // Kane is non-deterministic: a leak the first scan missed can show up in the re-scan. Fix those too, then scan again.
+    // ponytail: one extra round only, so a flaky check cannot loop forever.
+    const missed = after.findings.filter((f) => !outcomes.some((o) => o.finding.id === f.id));
+    if (missed.length > 0) {
+      opts.onEvent?.({ type: "missed", findings: missed.length });
+      extraCredits += after.credits;
+      for (const finding of missed) outcomes.push(await fixFinding(finding));
+      after = await rescan();
+    }
+    const report: FullReport = { before, outcomes, after, extraCredits: Math.round(extraCredits * 10) / 10 };
     writeReport(config.configDir, report, Object.values(config.secrets));
     return report;
   } finally {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatHeader, formatRow, formatSummary } from "../src/report/terminal.js";
-import type { Finding, ScanReport } from "../src/types.js";
+import { formatFixSummary, formatHeader, formatRow, formatSummary } from "../src/report/terminal.js";
+import type { Finding, FullReport, ScanReport } from "../src/types.js";
 
 const finding: Finding = {
   id: "home:network", check: "network", flow: "home", assertion: "", offender: "/api/recommendations",
@@ -46,5 +46,18 @@ describe("terminal", () => {
     expect(out).toContain("1 leak");
     expect(out).toContain("118 credits");
     expect(out).toContain("3m 12s");
+  });
+
+  it("fix summary counts leaks the re-scan caught and every credit spent", () => {
+    const scan = (findings: Finding[], credits: number) => ({ findings, errors: [], credits, units: 6 }) as unknown as ScanReport;
+    const report: FullReport = {
+      before: scan([], 100),
+      outcomes: [{ finding, attempts: [{ attempt: 1, files: ["a.ts"], verdict: "fixed" }], fixed: true }],
+      after: scan([], 100),
+      extraCredits: 35,
+    };
+    const out = strip(formatFixSummary(report, 60_000, "r.html"));
+    expect(out).toContain("1 → 0 leaks");
+    expect(out).toContain("235 credits");
   });
 });

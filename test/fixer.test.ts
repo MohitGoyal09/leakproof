@@ -72,6 +72,23 @@ describe("fixAll", () => {
     expect(readFileSync(join(repo, ".leakproof", "report.html"), "utf8")).toContain("FIXED");
   });
 
+  it("fixes a leak the first scan missed but the re-scan caught, then scans again", async () => {
+    // Kane is non-deterministic: scan passes, re-scan fails, the fix re-run passes, the last scan passes.
+    const kane = useFakeKane({ HttpOnly: [{ fixture: "pass", exit: 0 }, { fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    const events: string[] = [];
+    const report = await fixAll(config(), { onEvent: (e) => events.push(e.type) });
+    expect(report.before.findings).toEqual([]);
+    expect(report.outcomes).toHaveLength(1);
+    expect(report.outcomes?.[0].fixed).toBe(true);
+    expect(report.after?.findings).toEqual([]);
+    expect(events).toEqual(["scanned", "rescan", "missed", "attempt", "attempt-result", "rescan"]);
+    expect(kaneCalls(kane)).toHaveLength(4);
+    // The middle re-scan and the fix re-run are paid for too.
+    expect(report.extraCredits).toBeGreaterThan(0);
+    expect(git("log", "-1", "--pretty=%s")).toBe("fix: leakproof cookies in checkout");
+  });
+
   it("retries with Kane's feedback, then gives up with a clean tree", async () => {
     useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
     const log = useFakeClaude([{ write: { path: "app.js", content: "try\n" } }]);

@@ -83,10 +83,11 @@ export function formatAttempt(a: FixAttempt, width: number): string {
 }
 
 export function formatFixSummary(report: FullReport, elapsedMs: number, reportPath: string): string {
-  const before = report.before.findings.length;
+  // Count every leak handled, including ones only the re-scan caught.
+  const before = report.outcomes?.length ?? report.before.findings.length;
   const after = report.after?.findings.length ?? before;
   const fixed = report.outcomes?.filter((o) => o.fixed).length ?? 0;
-  const credits = Math.round(report.before.credits + (report.after?.credits ?? 0));
+  const credits = Math.round(report.before.credits + (report.after?.credits ?? 0) + (report.extraCredits ?? 0));
   const head = pc.bold(after === 0 ? pc.green(`${before} → ${after} leaks`) : pc.red(`${before} → ${after} leaks`));
   return `\n  ${[head, `${fixed} fix${fixed === 1 ? "" : "es"} verified by Kane`, pc.dim(`${credits} credits`), pc.dim(duration(elapsedMs))].join(pc.dim("  ·  "))}\n  ${pc.dim("Report")}  ${reportPath}\n`;
 }

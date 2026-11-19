@@ -105,7 +105,7 @@ export function renderHtml(report: FullReport, reportDir: string, secrets: reado
     }
   })();
   const fixedCount = items.filter((o) => o.fixed).length;
-  const credits = Math.round(before.credits + (after?.credits ?? 0));
+  const credits = Math.round(before.credits + (after?.credits ?? 0) + (report.extraCredits ?? 0));
 
   const verdictLine = after
     ? `${fixedCount} of ${items.length} fix${items.length === 1 ? "" : "es"} verified by a Kane re-run.`

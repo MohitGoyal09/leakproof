@@ -1,8 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { CHECKS } from "../checks.js";
 import { redactSecrets as redact } from "../redact.js";
 import type { Finding, FindingOutcome, FixAttempt, FullReport } from "../types.js";
+import { writeOwnFile } from "../guard.js";
 
 
 function makeEsc(secrets: readonly string[]) {
@@ -190,8 +190,7 @@ ${errors.length > 0 ? `<section class="errors"><span class="stamp warn">ERRORS</
 /** Write `.leakproof/report.html` under `configDir` and return its path. */
 export function writeReport(configDir: string, report: FullReport, secrets: readonly string[] = []): string {
   const dir = join(configDir, ".leakproof");
-  mkdirSync(dir, { recursive: true });
   const path = join(dir, "report.html");
-  writeFileSync(path, renderHtml(report, dir, secrets));
+  writeOwnFile(path, renderHtml(report, dir, secrets));
   return path;
 }

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execa } from "execa";
 
@@ -80,7 +80,7 @@ export interface GitState {
   files: Record<string, string | undefined>;
 }
 
-const GIT_FILES = ["config", "info/exclude"];
+const GIT_FILES = ["config", "config.worktree", "info/exclude", "info/attributes"];
 
 function readOrUndefined(path: string): string | undefined {
   try {
@@ -106,7 +106,10 @@ export function sameGitState(a: GitState, b: GitState): boolean {
 /** Put the commit, branch, hide flags and git's config back as they were. Uncommitted edits are left to revertAll. */
 export async function restoreGitState(root: string, state: GitState): Promise<void> {
   const gitDir = await git(root, ["rev-parse", "--absolute-git-dir"]);
-  for (const [f, content] of Object.entries(state.files)) if (content !== undefined) writeFileSync(join(gitDir, f), content);
+  for (const [f, content] of Object.entries(state.files)) {
+    if (content === undefined) rmSync(join(gitDir, f), { force: true });
+    else writeFileSync(join(gitDir, f), content);
+  }
   const now = await gitState(root);
   const added = now.flagged.filter((p) => !state.flagged.includes(p));
   if (added.length > 0) await git(root, ["update-index", "--no-assume-unchanged", "--no-skip-worktree", "--", ...added]);

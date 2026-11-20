@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { lstatSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { ignoredFiles } from "./git.js";
 
 /** Build and start files the agent may not touch: changing them can make a check pass without fixing the leak. */
@@ -71,4 +71,21 @@ export function restoreIgnored(root: string, before: IgnoredSnapshot, paths: rea
       writeFileSync(abs, saved.content);
     }
   }
+}
+
+/**
+ * Write a file Leakproof owns inside its `.leakproof` folder. The agent can plant symlinks there,
+ * so never follow one: refuse a symlinked folder on the way, and replace a symlinked file.
+ */
+export function writeOwnFile(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  // Check the folders from the file up to `.leakproof` (or just the file's folder): above it, system symlinks such as /var are fine.
+  const chain = [dirname(path)];
+  while (basename(chain[chain.length - 1]) !== ".leakproof" && dirname(chain[chain.length - 1]) !== chain[chain.length - 1]) {
+    chain.push(dirname(chain[chain.length - 1]));
+  }
+  const folders = basename(chain[chain.length - 1]) === ".leakproof" ? chain : chain.slice(0, 1);
+  for (const dir of folders) if (lstatSync(dir).isSymbolicLink()) throw new Error(`Refusing to write ${path}: ${dir} is a symlink.`);
+  rmSync(path, { force: true });
+  writeFileSync(path, content, { flag: "wx" });
 }

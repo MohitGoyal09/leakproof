@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, renameSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CHECKS } from "./checks.js";
 import type { CheckId, Finding, KaneResult, RunUnit } from "./types.js";
@@ -130,6 +130,9 @@ export function readEvidencePack(sessionDir: string, outDir: string, unitId: str
   if (failingStep) {
     mkdirSync(outDir, { recursive: true });
     try {
+      // Never unzip through a planted symlink; the rename below replaces a symlinked target itself.
+      if (lstatSync(outDir).isSymbolicLink()) throw new Error(`${outDir} is a symlink`);
+      rmSync(join(outDir, "screenshot.jpg"), { force: true });
       execFileSync("unzip", ["-o", "-j", zipPath, `${failingStep}/screenshot.jpg`, "-d", outDir], { stdio: "ignore" });
       const target = join(outDir, `${unitId.replace(/:/g, "__")}.jpg`);
       renameSync(join(outDir, "screenshot.jpg"), target);

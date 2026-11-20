@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { accessSync, constants, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { accessSync, constants, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
 import { changedFiles, commitAll, createBranch, fixBranchName, gitState, isClean, repoRoot, restoreGitState, revertAll, sameGitState } from "./git.js";
-import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored } from "./guard.js";
+import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
 import { clean } from "./report/terminal.js";
@@ -217,8 +217,7 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
         undoInFlight = undo;
         try {
           const prompt = buildFixPrompt(finding, flow, last, secrets);
-          mkdirSync(promptDir, { recursive: true });
-          writeFileSync(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
+          writeOwnFile(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
           const agent = await runAgent(root, prompt, opts.agentTimeoutMs, Object.keys(config.secrets));
           // Leakproof alone commits, and only what Kane proved: an agent that commits, stages or moves the branch is rejected.
           if (!sameGitState(gitBefore, await gitState(root))) {

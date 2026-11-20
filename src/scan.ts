@@ -1,4 +1,3 @@
-import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startApp } from "./app.js";
 import { dedupe, readEvidencePack, toFinding } from "./findings.js";
@@ -7,6 +6,7 @@ import { buildUnits } from "./objective.js";
 import { mapLimit } from "./pool.js";
 import { redactSecrets } from "./redact.js";
 import type { CheckId, Config, Finding, KaneResult, RunUnit, ScanReport, UnitResult } from "./types.js";
+import { writeOwnFile } from "./guard.js";
 
 export class ScanOptionError extends Error {
   override name = "ScanOptionError";
@@ -90,8 +90,7 @@ export async function scan(config: Config, opts: ScanOptions = {}): Promise<Scan
       errors: rows.flatMap((r) => (r.message ? [{ unit: r.row.unit, message: r.message }] : [])),
       credits: Math.round(rows.reduce((sum, r) => sum + (r.row.credits ?? 0), 0) * 10) / 10,
     };
-    mkdirSync(outDir(config), { recursive: true });
-    writeFileSync(join(outDir(config), "findings.json"), JSON.stringify(report, null, 2));
+    writeOwnFile(join(outDir(config), "findings.json"), JSON.stringify(report, null, 2));
     return report;
   } finally {
     await app?.stop();

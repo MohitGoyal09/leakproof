@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import { redactSecrets } from "./redact.js";
 import type { KaneResult, KaneVerdict, RunUnit } from "./types.js";
+import { writeOwnFile } from "./guard.js";
 
 export class KaneNotFoundError extends Error {
   override name = "KaneNotFoundError";
@@ -122,7 +123,7 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
   const varsPath = join(tmpdir(), `leakproof-vars-${randomUUID()}.json`);
   const vars = Object.fromEntries(Object.entries(opts.secrets).map(([k, value]) => [k, { value, secret: true }]));
   liveVarsFiles.add(varsPath);
-  writeFileSync(varsPath, JSON.stringify(vars), { mode: 0o600 });
+  writeFileSync(varsPath, JSON.stringify(vars), { mode: 0o600, flag: "wx" });
   const timeoutS = opts.timeoutS ?? DEFAULT_TIMEOUT_S;
   try {
     const res = await execa(
@@ -134,10 +135,9 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
     const secrets = Object.values(opts.secrets);
     const stdout = redactSecrets(typeof res.stdout === "string" ? res.stdout : "", secrets);
     const stderr = redactSecrets(typeof res.stderr === "string" ? res.stderr : "", secrets);
-    mkdirSync(opts.outDir, { recursive: true });
     const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${attempt > 1 ? `.try${attempt}` : ""}`);
-    writeFileSync(`${base}.ndjson`, stdout);
-    writeFileSync(`${base}.err`, stderr);
+    writeOwnFile(`${base}.ndjson`, stdout);
+    writeOwnFile(`${base}.err`, stderr);
     const result = parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
     const authProblem =
       result.reasonCode?.startsWith("auth") ||

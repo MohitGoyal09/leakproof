@@ -71,7 +71,8 @@ How Kane and the agent talk:
 
 - **Kane → agent:** the failed assertion, the evidence from the pack, and Kane's diagnosis and suggestion go into the agent's prompt, marked as untrusted data.
 - **Agent → Kane:** every edit restarts the app and triggers a Kane re-run of the same check. A fail is reverted, and Kane's new verdict goes into the next prompt.
-- **Kane is non-deterministic.** A check can pass in one run and fail in the next. If the full re-scan finds a leak the first scan missed, that leak goes through the same fix loop, and Kane scans every flow one more time.
+- **Kane is non-deterministic, and fixes can collide.** A check can pass in one run and fail in the next, and a later fix can break an earlier one. If the full re-scan finds a leak the first scan missed, or a fixed leak that came back, that leak goes through the same fix loop once more, and Kane scans every flow again. A fix counts only if the last scan no longer finds the leak.
+- Every prompt the agent got is saved in `.leakproof/prompts/`, and the report links the Kane run that proves each fix.
 
 ## Quick start
 
@@ -124,14 +125,16 @@ Steps are plain English. Checks whose browser capture resets every step (`networ
 ```bash
 bash scripts/demo.sh scan   # 6 leaks
 bash scripts/demo.sh fix    # 6 → 0, each fix proven by Kane
-bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
+bash scripts/demo.sh control   # the shop fixed by hand: 0 leaks
 ```
 
 ## Safety rules
 
-- `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix.
+- `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix. Only Leakproof commits, and only the files Kane checked.
+- If the agent runs git itself (a commit, a branch switch, a hidden-file flag or an edit to `.git/config`), the attempt is rejected and git is put back. Leakproof's own git commands run with hooks and fsmonitor turned off, so files the agent writes under `.git` never run.
+- The agent runs without the `env:` secrets and without Kane or TestMu AI credentials (`KANE_*`, `LT_*`, `LAMBDATEST_*`, `TESTMU_*`) in its environment.
 - The agent may not edit `leakproof.yml`, `package.json`, lockfiles, `tsconfig*.json` or `*.config.*` files. If it does, the attempt is rejected and reverted.
-- A fix hidden in gitignored files (such as `.env.local`) cannot pass: Leakproof snapshots them before each attempt and puts them back before Kane re-checks, since they would never reach the commit. Build output and `node_modules` are not watched.
+- A fix hidden in gitignored files (such as `.env.local`) cannot pass: Leakproof stops the app, snapshots those files before each attempt and puts them back before Kane re-checks, since they would never reach the commit. Build output and `node_modules` are not watched.
 - If Kane or the agent fails hard mid-fix (for example a logged-out CLI), or you press Ctrl-C, the unproven edit is reverted.
 - A failed attempt is reverted before the next one. After 3 attempts the leak is reported as still leaking.
 - Credentials go to Kane through a temporary variables file (mode 0600, deleted after the run, also on Ctrl-C). Their values are masked (as typed, JSON-escaped and URL-encoded) in prompts, logs, the terminal and the report. Screenshots in the evidence pack can still show what the page displayed.
@@ -143,8 +146,10 @@ bash scripts/demo.sh control   # hand-fixed shop: 0 leaks (no false positives)
 
 - The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, `sessionStorage`, hosts named `qa.` or `uat`).
 - Step-scoped checks pass when nothing matching happens in the step. An agent could pass `network` or `console` by removing the request instead of fixing it. Read the fix commits.
-- Each fix is re-checked alone. Other checks are re-run only in the final scan, which reports regressions but does not revert them.
-- Gitignored files are compared with their state before the run. A changed gitignored file over 1 MB cannot be put back, so the run stops (this includes large logs or databases your app writes inside the repo). Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
+- Each fix is re-checked alone. Other checks are re-run in the full re-scan. A leak that comes back gets one more fix pass; there is no third round, and a regression is never reverted automatically.
+- Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
+- The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
+- Only Claude Code is supported as the agent.
 - The evidence so far is one demo shop with six planted leaks, real fix runs and one hand-fixed control. Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, which is why a missed leak now gets its own fix pass. A leak that both scans miss is not reported.
 
 ## Cost

@@ -107,6 +107,22 @@ describe("fixAll", () => {
     expect(existsSync(join(repo, "package.json"))).toBe(false);
   });
 
+  it("accepts a fix when a hook adds lines to .git/info/exclude, but a file hidden there still cannot pass", async () => {
+    // The user's Claude hooks may append to info/exclude on every run (seen with a design-skill hook).
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+    const exclude = join(repo, ".git", "info", "exclude");
+    const hooked = `${existsSync(exclude) ? readFileSync(exclude, "utf8") : ""}\nhidden-fix.js\n.impeccable/hook.cache.json\n`;
+    useFakeClaude([
+      { write: { path: ".git/info/exclude", content: hooked } },
+      { write: { path: "hidden-fix.js", content: "fix\n" } },
+      { write: { path: "app.js", content: "fixed\n" } },
+    ]);
+    const report = await fixAll(config());
+    const attempts = report.outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["still-failing", "still-failing", "fixed"]);
+    expect(existsSync(join(repo, "hidden-fix.js"))).toBe(false);
+  });
+
   it("starts the agent without the flow's secrets or Kane's tokens in its environment", async () => {
     process.env.SHOP_PASS = "demo123";
     process.env.KANE_TOKEN = "kane-secret";

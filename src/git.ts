@@ -80,7 +80,9 @@ export interface GitState {
   files: Record<string, string | undefined>;
 }
 
-const GIT_FILES = ["config", "config.worktree", "info/exclude", "info/attributes"];
+// Not info/exclude: hooks in the user's Claude setup append to it on every run, and a file hidden through it
+// shows up as a gitignored file, which the ignored-file guard deletes before Kane looks.
+const GIT_FILES = ["config", "config.worktree", "info/attributes"];
 
 function readOrUndefined(path: string): string | undefined {
   try {

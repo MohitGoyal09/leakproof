@@ -49,7 +49,7 @@ describe("restoreGitState with symlinks", () => {
 });
 
 describe("restoreGitState", () => {
-  it("deletes git files the agent created, such as info/exclude", async () => {
+  it("deletes git files the agent created, such as info/attributes", async () => {
     const repo = tempDir("lp-gs-");
     const git = (...a: string[]) => execFileSync("git", a, { cwd: repo, encoding: "utf8" }).trim();
     git("init", "-q", "-b", "main");
@@ -58,12 +58,11 @@ describe("restoreGitState", () => {
     writeFileSync(join(repo, "a.txt"), "a\n");
     git("add", "-A");
     git("commit", "-qm", "init");
-    const exclude = join(repo, ".git", "info", "exclude");
-    execFileSync("rm", ["-f", exclude]);
+    const attributes = join(repo, ".git", "info", "attributes");
     const before = await gitState(repo);
     mkdirSync(join(repo, ".git", "info"), { recursive: true });
-    writeFileSync(exclude, "src/\n");
+    writeFileSync(attributes, "*.js filter=evil\n");
     await restoreGitState(repo, before);
-    expect(existsSync(exclude)).toBe(false);
+    expect(existsSync(attributes)).toBe(false);
   });
 });

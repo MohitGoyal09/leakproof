@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CHECKS } from "./checks.js";
 import type { CheckId, Finding, KaneResult, RunUnit } from "./types.js";
+import { ownFolder } from "./guard.js";
 
 export interface HarEntry {
   request: { method: string; url: string };
@@ -128,10 +129,9 @@ export function readEvidencePack(sessionDir: string, outDir: string, unitId: str
   let screenshot: string | undefined;
   const failingStep = /path:\s*(tests\/\S+)\/failure\.yaml/.exec(unzipText(zipPath, "failure.yaml"))?.[1];
   if (failingStep) {
-    mkdirSync(outDir, { recursive: true });
     try {
       // Never unzip through a planted symlink; the rename below replaces a symlinked target itself.
-      if (lstatSync(outDir).isSymbolicLink()) throw new Error(`${outDir} is a symlink`);
+      ownFolder(outDir);
       rmSync(join(outDir, "screenshot.jpg"), { force: true });
       execFileSync("unzip", ["-o", "-j", zipPath, `${failingStep}/screenshot.jpg`, "-d", outDir], { stdio: "ignore" });
       const target = join(outDir, `${unitId.replace(/:/g, "__")}.jpg`);

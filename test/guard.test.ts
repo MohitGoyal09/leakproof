@@ -28,6 +28,26 @@ describe("writeOwnFile", () => {
   });
 });
 
+describe("restoreGitState with symlinks", () => {
+  it("removes a symlinked .git/info instead of writing through it", async () => {
+    const repo = tempDir("lp-gs-");
+    const git = (...a: string[]) => execFileSync("git", a, { cwd: repo, encoding: "utf8" }).trim();
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "dev@example.com");
+    git("config", "user.name", "Dev");
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    git("add", "-A");
+    git("commit", "-qm", "init");
+    const before = await gitState(repo);
+    const elsewhere = tempDir("lp-else-");
+    writeFileSync(join(elsewhere, "exclude"), "victim\n");
+    execFileSync("rm", ["-rf", join(repo, ".git", "info")]);
+    symlinkSync(elsewhere, join(repo, ".git", "info"));
+    await restoreGitState(repo, before);
+    expect(readFileSync(join(elsewhere, "exclude"), "utf8")).toBe("victim\n");
+  });
+});
+
 describe("restoreGitState", () => {
   it("deletes git files the agent created, such as info/exclude", async () => {
     const repo = tempDir("lp-gs-");

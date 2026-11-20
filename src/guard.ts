@@ -74,18 +74,25 @@ export function restoreIgnored(root: string, before: IgnoredSnapshot, paths: rea
 }
 
 /**
- * Write a file Leakproof owns inside its `.leakproof` folder. The agent can plant symlinks there,
- * so never follow one: refuse a symlinked folder on the way, and replace a symlinked file.
+ * Create `dir` and check that no folder from it up to `.leakproof` (or `dir` alone, outside one) is a symlink.
+ * Above `.leakproof`, system symlinks such as /var are fine.
  */
-export function writeOwnFile(path: string, content: string): void {
-  mkdirSync(dirname(path), { recursive: true });
-  // Check the folders from the file up to `.leakproof` (or just the file's folder): above it, system symlinks such as /var are fine.
-  const chain = [dirname(path)];
+export function ownFolder(dir: string): void {
+  mkdirSync(dir, { recursive: true });
+  const chain = [dir];
   while (basename(chain[chain.length - 1]) !== ".leakproof" && dirname(chain[chain.length - 1]) !== chain[chain.length - 1]) {
     chain.push(dirname(chain[chain.length - 1]));
   }
   const folders = basename(chain[chain.length - 1]) === ".leakproof" ? chain : chain.slice(0, 1);
-  for (const dir of folders) if (lstatSync(dir).isSymbolicLink()) throw new Error(`Refusing to write ${path}: ${dir} is a symlink.`);
+  for (const f of folders) if (lstatSync(f).isSymbolicLink()) throw new Error(`Refusing to write into ${dir}: ${f} is a symlink.`);
+}
+
+/**
+ * Write a file Leakproof owns inside its `.leakproof` folder. The agent can plant symlinks there,
+ * so never follow one: refuse a symlinked folder on the way, and replace a symlinked file.
+ */
+export function writeOwnFile(path: string, content: string): void {
+  ownFolder(dirname(path));
   rmSync(path, { force: true });
   writeFileSync(path, content, { flag: "wx" });
 }

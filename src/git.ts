@@ -1,4 +1,4 @@
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execa } from "execa";
 
@@ -106,9 +106,13 @@ export function sameGitState(a: GitState, b: GitState): boolean {
 /** Put the commit, branch, hide flags and git's config back as they were. Uncommitted edits are left to revertAll. */
 export async function restoreGitState(root: string, state: GitState): Promise<void> {
   const gitDir = await git(root, ["rev-parse", "--absolute-git-dir"]);
+  // The agent may have swapped .git/info or a file for a symlink: remove links, never write through them.
+  const info = join(gitDir, "info");
+  if (existsSync(info) && lstatSync(info).isSymbolicLink()) rmSync(info, { force: true });
+  mkdirSync(info, { recursive: true });
   for (const [f, content] of Object.entries(state.files)) {
-    if (content === undefined) rmSync(join(gitDir, f), { force: true });
-    else writeFileSync(join(gitDir, f), content);
+    rmSync(join(gitDir, f), { force: true });
+    if (content !== undefined) writeFileSync(join(gitDir, f), content, { flag: "wx" });
   }
   const now = await gitState(root);
   const added = now.flagged.filter((p) => !state.flagged.includes(p));

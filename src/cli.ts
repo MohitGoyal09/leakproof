@@ -6,7 +6,7 @@ import { Command, CommanderError } from "commander";
 import { stopAllApps } from "./app.js";
 import { loadConfig } from "./config.js";
 import { fixAll, interruptFix } from "./fixer.js";
-import { removeVarsFiles, stopAllKane } from "./kane.js";
+import { checkKaneLogin, removeVarsFiles, stopAllKane } from "./kane.js";
 import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
 import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
@@ -39,6 +39,8 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   const only = opts.only ? parseCheck(opts.only) : undefined;
   const flows = config.flows.filter((f) => (!opts.flow || f.name === opts.flow) && (!only || f.checks.includes(only)));
   const units = flows.reduce((n, f) => n + f.checks.filter((c) => !only || c === only).length, 0);
+  if (units === 0) throw new UsageError("No checks match --only and --flow. Nothing to scan.");
+  await checkKaneLogin();
   io.out(formatHeader(config.url, units, flows.length));
   const t0 = Date.now();
   const report = await scan(config, { only, flow: opts.flow, onResult: (row) => io.out(formatRow(row, io.width)) });
@@ -52,6 +54,7 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
   const maxAttempts = Number.parseInt(opts.maxAttempts, 10);
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) throw new UsageError("--max-attempts must be a whole number from 1 to 10.");
   const config = loadConfig(opts.config);
+  await checkKaneLogin();
   const units = config.flows.reduce((n, f) => n + f.checks.length, 0);
   io.out(formatHeader(config.url, units, config.flows.length));
   if (!config.start) {

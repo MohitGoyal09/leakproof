@@ -14,6 +14,12 @@ const varsPath = argv[argv.indexOf("--variables-file") + 1];
 const secret = process.env.FAKE_KANE_SECRET;
 const varsHadSecret = Boolean(secret && varsPath && existsSync(varsPath) && readFileSync(varsPath, "utf8").includes(secret));
 
+// `kane-cli whoami`: logged in unless the plan says {"whoami": {"exit": 1}}.
+if (argv[0] === "whoami") {
+  if (log) appendFileSync(log, JSON.stringify({ key: "whoami", argv, varsHadSecret: false }) + "\n");
+  process.stdout.write(plan.whoami?.exit ? "Not logged in\n" : "✓ Authenticated\n");
+  process.exit(plan.whoami?.exit ?? 0);
+}
 const key = Object.keys(plan).find((k) => objective.includes(k));
 let calls = 0;
 if (log && existsSync(log)) calls = readFileSync(log, "utf8").split("\n").filter((l) => l && JSON.parse(l).key === key).length;

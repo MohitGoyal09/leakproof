@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../src/cli.js";
-import { tempDir, useFakeKane } from "./helpers.js";
+import { kaneCalls, tempDir, useFakeKane } from "./helpers.js";
 
 let server: Server;
 let dir: string;
@@ -46,11 +46,26 @@ describe("cli main", () => {
     expect(out.join("\n")).not.toMatch(/at .*\.ts:\d+/);
   });
 
+  it("checks the Kane login before spending credits", async () => {
+    const kane = useFakeKane({ whoami: { exit: 1 } });
+    const code = await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    expect(code).toBe(2);
+    expect(out.join("\n")).toContain("kane-cli login");
+    expect(kaneCalls(kane).map((c) => c.argv[0])).toEqual(["whoami"]);
+  });
+
   it("missing kane prints the install hint and exits 2", async () => {
     process.env.LEAKPROOF_KANE_BIN = "/nonexistent/kane-cli";
     const code = await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml"), "--only", "cookies"], io);
     expect(code).toBe(2);
     expect(out.join("\n")).toContain("npm install -g @testmuai/kane-cli");
+  });
+
+  it("stops when --flow matches no checks, instead of reporting 0 leaks", async () => {
+    useFakeKane({});
+    const code = await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml"), "--flow", "no-such-flow"], io);
+    expect(code).toBe(2);
+    expect(out.join("\n")).toContain("No checks match");
   });
 
   it("rejects an unknown --only check", async () => {

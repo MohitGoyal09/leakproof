@@ -120,6 +120,17 @@ export function removeVarsFiles(): void {
   liveVarsFiles.clear();
 }
 
+/**
+ * Check the Kane login before any credits are spent. `whoami` costs nothing, and it also refreshes a login
+ * that went stale while the machine was idle (seen in real runs: the first run after a long pause failed).
+ */
+export async function checkKaneLogin(): Promise<void> {
+  const bin = kaneBin();
+  const res = await execa(bin, ["whoami"], { reject: false, stdin: "ignore", timeout: 60_000 });
+  if ((res as { code?: string }).code === "ENOENT") throw new KaneNotFoundError(bin);
+  if (res.exitCode !== 0) throw new KaneAuthError();
+}
+
 /** Process groups of the Kane runs now going, so a timeout or Ctrl-C can kill each whole tree. */
 const liveKane = new Set<number>();
 

@@ -64,7 +64,11 @@ describe("fixAll", () => {
     useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
     const report = await fixAll(config());
     expect(report.outcomes?.[0].fixed).toBe(true);
-    expect(report.outcomes?.[0].attempts).toEqual([{ attempt: 1, files: ["app.js"], verdict: "fixed" }]);
+    expect(report.outcomes?.[0].attempts).toEqual([
+      { attempt: 1, files: ["app.js"], verdict: "fixed", testUrl: "https://test-manager.lambdatest.com/share/example-run" },
+    ]);
+    // The exact prompt the agent got is kept next to the report.
+    expect(readFileSync(join(repo, ".leakproof", "prompts", "checkout__cookies.1.txt"), "utf8")).toContain("Kane's assertion that failed");
     expect(git("rev-parse", "--abbrev-ref", "HEAD")).toMatch(/^leakproof\/fix-\d{8}-\d{6}$/);
     expect(git("log", "-1", "--pretty=%s")).toBe("fix: leakproof cookies in checkout");
     expect(git("log", "-1", "--pretty=%b")).not.toMatch(/Co-Authored-By/i);
@@ -82,11 +86,63 @@ describe("fixAll", () => {
     expect(report.outcomes).toHaveLength(1);
     expect(report.outcomes?.[0].fixed).toBe(true);
     expect(report.after?.findings).toEqual([]);
-    expect(events).toEqual(["scanned", "rescan", "missed", "attempt", "attempt-result", "rescan"]);
+    expect(events).toEqual(["scanned", "rescan", "recheck", "attempt", "attempt-result", "rescan"]);
     expect(kaneCalls(kane)).toHaveLength(4);
     // The middle re-scan and the fix re-run are paid for too.
     expect(report.extraCredits).toBeGreaterThan(0);
     expect(git("log", "-1", "--pretty=%s")).toBe("fix: leakproof cookies in checkout");
+  });
+
+  it("rejects an attempt where the agent commits by itself, and drops that commit", async () => {
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([
+      { write: { path: "package.json", content: "{}\n" }, git: [["add", "-A"], ["commit", "-qm", "sneaky"]] },
+      { write: { path: "app.js", content: "fixed\n" } },
+    ]);
+    const report = await fixAll(config());
+    const attempts = report.outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+    expect(attempts[0].note).toMatch(/git/);
+    expect(git("log", "--format=%s")).not.toContain("sneaky");
+    expect(existsSync(join(repo, "package.json"))).toBe(false);
+  });
+
+  it("starts the agent without the flow's secrets or Kane's tokens in its environment", async () => {
+    process.env.SHOP_PASS = "demo123";
+    process.env.KANE_TOKEN = "kane-secret";
+    try {
+      useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+      const log = useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+      await fixAll(config());
+      const keys = claudeCalls(log)[0].envKeys;
+      expect(keys).toContain("PATH");
+      expect(keys).not.toContain("SHOP_PASS");
+      expect(keys).not.toContain("KANE_TOKEN");
+    } finally {
+      delete process.env.SHOP_PASS;
+      delete process.env.KANE_TOKEN;
+    }
+  });
+
+  it("fixes a leak again when the re-scan finds it broken after a later fix", async () => {
+    // scan fails, fix passes, re-scan fails (regressed), second fix passes, last scan passes.
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }, { write: { path: "app.js", content: "fixed again\n" } }]);
+    const report = await fixAll(config());
+    expect(report.outcomes).toHaveLength(1);
+    const o = report.outcomes![0];
+    expect(o.fixed).toBe(true);
+    expect(o.attempts.map((a) => a.verdict)).toEqual(["fixed", "still-failing", "fixed"]);
+    expect(o.attempts[1].note).toMatch(/re-scan/);
+    expect(report.after?.findings).toEqual([]);
+  });
+
+  it("does not count a fix as verified when the last scan still finds the leak", async () => {
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "fail", exit: 1 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config(), { maxAttempts: 1 });
+    expect(report.outcomes![0].fixed).toBe(false);
+    expect(report.after?.findings).toHaveLength(1);
   });
 
   it("retries with Kane's feedback, then gives up with a clean tree", async () => {
@@ -222,6 +278,27 @@ describe("fixAll with a start command", () => {
     expect(claudeCalls(log)[1].prompt).toContain("build failed");
     expect(readFileSync(join(repo, "app.js"), "utf8")).toBe("fixed\n");
     expect(clean()).toBe("");
+  }, 60000);
+
+  it("does not blame the agent for gitignored files the app writes", async () => {
+    server.close();
+    const probe = createServer();
+    await new Promise<void>((r) => probe.listen(0, () => r()));
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise((r) => probe.close(r));
+    writeRepo(`http://127.0.0.1:${port}`, "cookies");
+    writeFileSync(join(repo, ".gitignore"), ".leakproof/\n*.log\n");
+    // Every start rewrites a 2 MB log: too big to save, so it must not be mistaken for an agent change.
+    const start = `node -e "require('fs').writeFileSync('app.log', 'x'.repeat(2000000)); require('http').createServer((q,s)=>s.end('ok')).listen(${port})"`;
+    writeFileSync(join(repo, "leakproof.yml"), readFileSync(join(repo, "leakproof.yml"), "utf8").replace(/^env:/m, `start: ${JSON.stringify(start)}\nenv:`));
+    git("add", "-A");
+    git("commit", "-qm", "start command");
+    writeFileSync(join(repo, "app.log"), "y".repeat(2_000_000));
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config());
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["fixed"]);
+    expect(existsSync(join(repo, "app.log"))).toBe(true);
   }, 60000);
 
   it("leaves no fix branch behind when the app cannot start at all", async () => {

@@ -1,9 +1,13 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { execa } from "execa";
 
 const OUTPUT_DIR = ".leakproof";
+// The agent can write files under .git, so never let git run hooks or an fsmonitor on Leakproof's behalf.
+const SAFE = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"];
 
 async function git(cwd: string, args: string[], raw = false): Promise<string> {
-  const res = await execa("git", args, { cwd, reject: false, stripFinalNewline: !raw });
+  const res = await execa("git", [...SAFE, ...args], { cwd, reject: false, stripFinalNewline: !raw });
   if (res.exitCode !== 0) throw new Error(`git ${args[0]} failed: ${String(res.stderr || res.stdout).trim()}`);
   return raw ? String(res.stdout) : String(res.stdout).trim();
 }
@@ -41,9 +45,9 @@ export async function isClean(root: string, outputDir = OUTPUT_DIR): Promise<boo
   return (await changedFiles(root, outputDir)).length === 0;
 }
 
-/** Throw away every uncommitted change, keeping Leakproof's output folder. */
+/** Throw away every uncommitted change, staged or not, keeping Leakproof's output folder. */
 export async function revertAll(root: string, outputDir = OUTPUT_DIR): Promise<void> {
-  await git(root, ["checkout", "--", "."]);
+  await git(root, ["reset", "-q", "--hard"]);
   await git(root, ["clean", "-fd", "-e", `/${outputDir}/`]);
 }
 
@@ -56,8 +60,9 @@ export async function createBranch(root: string, name: string): Promise<void> {
   await git(root, ["checkout", "-q", "-b", name]);
 }
 
-export async function commitAll(root: string, message: string, outputDir = OUTPUT_DIR): Promise<void> {
-  const files = await changedFiles(root, outputDir);
+/** Commit `only` (the files that were checked), or every change when it is not given. */
+export async function commitAll(root: string, message: string, outputDir = OUTPUT_DIR, only?: readonly string[]): Promise<void> {
+  const files = only ?? (await changedFiles(root, outputDir));
   await git(root, ["add", "--", ...files]);
   await git(root, ["commit", "-q", "-m", message]);
 }
@@ -65,4 +70,46 @@ export async function commitAll(root: string, message: string, outputDir = OUTPU
 export function fixBranchName(now = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `leakproof/fix-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+}
+
+/** What the agent may not change through git itself: the commit, the branch, hide flags on tracked files, and git's config. */
+export interface GitState {
+  head: string;
+  branch: string;
+  flagged: string[];
+  files: Record<string, string | undefined>;
+}
+
+const GIT_FILES = ["config", "info/exclude"];
+
+function readOrUndefined(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+export async function gitState(root: string): Promise<GitState> {
+  const gitDir = await git(root, ["rev-parse", "--absolute-git-dir"]);
+  const branch = await git(root, ["symbolic-ref", "-q", "HEAD"]).catch(() => "");
+  // `ls-files -v` marks assume-unchanged files with a lowercase tag and skip-worktree files with "S": both hide edits from status.
+  const flagged = (await git(root, ["ls-files", "-v"], true)).split("\n").filter((l) => /^[a-zS] /.test(l)).map((l) => l.slice(2));
+  const files = Object.fromEntries(GIT_FILES.map((f) => [f, readOrUndefined(join(gitDir, f))]));
+  return { head: await git(root, ["rev-parse", "HEAD"]), branch, flagged, files };
+}
+
+export function sameGitState(a: GitState, b: GitState): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** Put the commit, branch, hide flags and git's config back as they were. Uncommitted edits are left to revertAll. */
+export async function restoreGitState(root: string, state: GitState): Promise<void> {
+  const gitDir = await git(root, ["rev-parse", "--absolute-git-dir"]);
+  for (const [f, content] of Object.entries(state.files)) if (content !== undefined) writeFileSync(join(gitDir, f), content);
+  const now = await gitState(root);
+  const added = now.flagged.filter((p) => !state.flagged.includes(p));
+  if (added.length > 0) await git(root, ["update-index", "--no-assume-unchanged", "--no-skip-worktree", "--", ...added]);
+  if (now.branch !== state.branch && state.branch) await git(root, ["checkout", "-q", "-f", state.branch.replace(/^refs\/heads\//, "")]);
+  if (now.head !== state.head) await git(root, ["reset", "-q", "--hard", state.head]);
 }

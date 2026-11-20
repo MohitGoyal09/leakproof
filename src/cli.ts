@@ -71,7 +71,7 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
       }
       if (e.type === "attempt-result") io.out(formatAttempt(e.result, io.width));
       if (e.type === "rescan") io.out("\n  Re-scanning every flow to catch regressions\n");
-      if (e.type === "missed") io.out(`  Kane caught ${e.findings} leak${e.findings === 1 ? "" : "s"} the first scan missed. Fixing ${e.findings === 1 ? "it" : "them"} too.`);
+      if (e.type === "recheck") io.out(`  The re-scan found ${e.findings} leak${e.findings === 1 ? "" : "s"} that ${e.findings === 1 ? "is" : "are"} not settled (missed before, or broken by a later fix). Fixing ${e.findings === 1 ? "it" : "them"} too.`);
     },
   });
   const html = `${outDir(config)}/report.html`;
@@ -104,7 +104,7 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .action(() => {
       const { configPath, gitignoreUpdated } = runInit(process.cwd());
       io.out(`\n  Wrote ${relative(process.cwd(), configPath)}${gitignoreUpdated ? " and added .leakproof/ to .gitignore" : ""}.`);
-      io.out("  Edit the url and flows, then run: npx leakproof scan\n");
+      io.out("  Edit the url and flows, export the variables listed under env, then run: leakproof scan\n");
     });
 
   program
@@ -113,7 +113,7 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .option("-c, --config <path>", "path to leakproof.yml", "leakproof.yml")
     .action((opts: { config: string }) => {
       const path = join(dirname(resolve(opts.config)), ".leakproof", "report.html");
-      if (!existsSync(path)) throw new UsageError("No report yet. Run: npx leakproof scan");
+      if (!existsSync(path)) throw new UsageError("No report yet. Run: leakproof scan");
       io.out(path);
     });
 

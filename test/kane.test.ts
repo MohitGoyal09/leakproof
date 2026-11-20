@@ -106,4 +106,10 @@ describe("runKane login detection", () => {
     await expect(runKane(unit("assert HttpOnly"), opts())).rejects.toThrow(KaneAuthError);
     await expect(runKane(unit("assert HttpOnly"), opts())).rejects.toThrow(/kane-cli login/);
   });
+
+  it("does not mistake the app's own 401 for a logged-out Kane", async () => {
+    useFakeKane({ HttpOnly: { fixture: "app-401", exit: 1 } });
+    const r = await runKane(unit("assert HttpOnly"), opts());
+    expect(r.status).toBe("error");
+  });
 });

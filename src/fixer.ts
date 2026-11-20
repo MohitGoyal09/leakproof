@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import { accessSync, constants, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, fixBranchName, isClean, repoRoot, revertAll } from "./git.js";
+import { changedFiles, commitAll, createBranch, fixBranchName, gitState, isClean, repoRoot, restoreGitState, revertAll, sameGitState } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
@@ -35,7 +35,7 @@ export type FixEvent =
   | { type: "attempt"; finding: Finding; attempt: number }
   | { type: "attempt-result"; finding: Finding; result: FixAttempt }
   | { type: "rescan" }
-  | { type: "missed"; findings: number };
+  | { type: "recheck"; findings: number };
 
 const MAX_ATTEMPTS = 3;
 const AGENT_TIMEOUT_MS = 600_000;
@@ -94,13 +94,23 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
 /** The agent process now running, so an interrupt can kill it before undoing its edits. */
 let activeAgent: { kill: (signal?: NodeJS.Signals) => boolean } | undefined;
 
+/** Kane and TestMu AI credentials in the environment. The agent never needs them. */
+const KANE_ENV = /^(KANE|LT|LAMBDATEST|TESTMU)_/i;
+
+/** The environment without the flow's secrets and Kane's credentials, so page text cannot talk the agent into leaking them. */
+export function agentEnv(hidden: readonly string[], env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !hidden.includes(name) && !KANE_ENV.test(name)));
+}
+
 /** Run the coding agent headless in `dir`. ok=false on crash, timeout or missing binary. */
-export async function runAgent(dir: string, prompt: string, timeoutMs = AGENT_TIMEOUT_MS): Promise<{ ok: boolean; note?: string }> {
+export async function runAgent(dir: string, prompt: string, timeoutMs = AGENT_TIMEOUT_MS, hiddenEnv: readonly string[] = []): Promise<{ ok: boolean; note?: string }> {
   const child = execa(claudeBin(), ["-p", prompt, "--permission-mode", "acceptEdits", "--output-format", "json"], {
     cwd: dir,
     timeout: timeoutMs,
     reject: false,
     stdin: "ignore",
+    env: agentEnv(hiddenEnv),
+    extendEnv: false,
   });
   activeAgent = child;
   const res = await child.finally(() => {
@@ -151,8 +161,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
       return true;
     }
   };
-  // One baseline for the whole run: every attempt is compared with, and put back to, the state before any agent ran.
-  const ignored = await snapshotIgnored(root, output);
+  const secrets = Object.values(config.secrets);
+  const promptDir = join(config.configDir, ".leakproof", "prompts");
   let app: AppHandle = await startApp(config);
   try {
     await createBranch(root, fixBranchName());
@@ -170,16 +180,16 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
       await restart();
       return undefined;
     } catch (error: unknown) {
-      return redactSecrets(error instanceof Error ? error.message : String(error), Object.values(config.secrets));
+      return redactSecrets(error instanceof Error ? error.message : String(error), secrets);
     }
   };
 
   try {
     let extraCredits = 0;
     /** Have the agent fix one finding, up to maxAttempts; a fix counts only when Kane's re-run passes. */
-    const fixFinding = async (finding: Finding): Promise<FindingOutcome> => {
+    const fixFinding = async (finding: Finding, earlier: readonly FixAttempt[] = []): Promise<FindingOutcome> => {
       const flow = config.flows.find((f) => f.name === finding.flow) as Flow;
-      const attempts: FixAttempt[] = [];
+      const attempts: FixAttempt[] = [...earlier];
       let last: KaneResult | undefined;
       let fixed = false;
       const record = (a: FixAttempt) => {
@@ -187,17 +197,35 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
         opts.onEvent?.({ type: "attempt-result", finding, result: a });
       };
 
-      for (let attempt = 1; attempt <= maxAttempts && !fixed; attempt++) {
+      for (let i = 1; i <= maxAttempts && !fixed; i++) {
+        const attempt = earlier.length + i;
         opts.onEvent?.({ type: "attempt", finding, attempt });
-        /** Throw away everything the agent did: tracked edits, new files, ignored files and the config. */
+        // Stop the app while the agent works, so files the app writes are never taken for the agent's changes.
+        // Every attempt starts from the last proven commit: anything uncommitted now was written by the app.
+        // ponytail: without `start` the app is not ours to stop, so its gitignored writes still count as the agent's.
+        await app.stop();
+        await revertAll(root, output);
+        const ignored = await snapshotIgnored(root, output);
+        const gitBefore = await gitState(root);
+        /** Throw away everything the agent did: commits, branch moves, tracked edits, new files, ignored files and the config. */
         const undo = async () => {
+          await restoreGitState(root, gitBefore);
           restoreIgnored(root, ignored, await ignoredChanges(root, output, ignored));
           await revertAll(root, output);
           if (configChanged()) writeFileSync(config.configPath, configText);
         };
         undoInFlight = undo;
         try {
-          const agent = await runAgent(root, buildFixPrompt(finding, flow, last, Object.values(config.secrets)), opts.agentTimeoutMs);
+          const prompt = buildFixPrompt(finding, flow, last, secrets);
+          mkdirSync(promptDir, { recursive: true });
+          writeFileSync(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
+          const agent = await runAgent(root, prompt, opts.agentTimeoutMs, Object.keys(config.secrets));
+          // Leakproof alone commits, and only what Kane proved: an agent that commits, stages or moves the branch is rejected.
+          if (!sameGitState(gitBefore, await gitState(root))) {
+            await undo();
+            record({ attempt, files: [], verdict: "rejected", note: "the agent ran git itself (a commit, a branch move or a hidden file)" });
+            continue;
+          }
           const files = await changedFiles(root, output);
           if (!agent.ok) {
             await undo();
@@ -224,7 +252,6 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           const startError = await restartAfterEdit();
           if (startError) {
             await undo();
-            await restart();
             last = { status: "error", exitCode: 2, summary: `The app failed to start after your change: ${startError}`, finalState: {} };
             record({ attempt, files, verdict: "error", note: "the app failed to start after the change" });
             continue;
@@ -232,13 +259,13 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           const { unit, result } = await runUnit(config, finding.id);
           extraCredits += result.credits ?? 0;
           if (result.status === "passed") {
-            await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`, output);
-            record({ attempt, files, verdict: "fixed" });
+            // Commit only the files that were checked, not what the app wrote while Kane ran.
+            await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`, output, files);
+            record({ attempt, files, verdict: "fixed", testUrl: result.testUrl });
             fixed = true;
           } else {
             last = result;
             await undo();
-            await restart();
             record({ attempt, files, verdict: "still-failing", note: result.status === "failed" ? undefined : `Kane ${result.status}` });
             const refreshed = findingFor(config, unit, result);
             if (refreshed) Object.assign(finding, { evidence: refreshed.evidence.length ? refreshed.evidence : finding.evidence });
@@ -268,17 +295,28 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
     for (const finding of before.findings) outcomes.push(await fixFinding(finding));
 
     let after = await rescan();
-    // Kane is non-deterministic: a leak the first scan missed can show up in the re-scan. Fix those too, then scan again.
+    // Kane is non-deterministic, and a later fix can break an earlier one. Fix what the re-scan found
+    // (a leak the first scan missed, or a fixed leak that came back), then scan again.
     // ponytail: one extra round only, so a flaky check cannot loop forever.
-    const missed = after.findings.filter((f) => !outcomes.some((o) => o.finding.id === f.id));
-    if (missed.length > 0) {
-      opts.onEvent?.({ type: "missed", findings: missed.length });
+    const recheck = after.findings.filter((f) => outcomes.find((o) => o.finding.id === f.id)?.fixed ?? true);
+    if (recheck.length > 0) {
+      opts.onEvent?.({ type: "recheck", findings: recheck.length });
       extraCredits += after.credits;
-      for (const finding of missed) outcomes.push(await fixFinding(finding));
+      for (const finding of recheck) {
+        const i = outcomes.findIndex((o) => o.finding.id === finding.id);
+        if (i < 0) {
+          outcomes.push(await fixFinding(finding));
+          continue;
+        }
+        const back: FixAttempt = { attempt: outcomes[i].attempts.length + 1, files: [], verdict: "still-failing", note: "fixed earlier, but the re-scan found it again" };
+        outcomes[i] = await fixFinding(finding, [...outcomes[i].attempts, back]);
+      }
       after = await rescan();
     }
-    const report: FullReport = { before, outcomes, after, extraCredits: Math.round(extraCredits * 10) / 10 };
-    writeReport(config.configDir, report, Object.values(config.secrets));
+    // A fix counts only if the last scan no longer finds the leak.
+    const final = outcomes.map((o) => (o.fixed && after.findings.some((f) => f.id === o.finding.id) ? { ...o, fixed: false } : o));
+    const report: FullReport = { before, outcomes: final, after, extraCredits: Math.round(extraCredits * 10) / 10 };
+    writeReport(config.configDir, report, secrets);
     return report;
   } finally {
     await app.stop();

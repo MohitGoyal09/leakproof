@@ -1,5 +1,9 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parsePorcelain } from "../src/git.js";
+import { parsePorcelain, revertAll } from "../src/git.js";
+import { tempDir } from "./helpers.js";
 
 describe("parsePorcelain", () => {
   it("keeps the first character of the first path", () => {
@@ -18,5 +22,24 @@ describe("parsePorcelain", () => {
 
   it("keeps paths with spaces intact", () => {
     expect(parsePorcelain("?? my file.ts\0")).toEqual(["my file.ts"]);
+  });
+});
+
+describe("revertAll", () => {
+  it("also throws away staged edits and staged new files", async () => {
+    const repo = tempDir("lp-git-");
+    const git = (...a: string[]) => execFileSync("git", a, { cwd: repo, encoding: "utf8" }).trim();
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "dev@example.com");
+    git("config", "user.name", "Dev");
+    writeFileSync(join(repo, "a.txt"), "one\n");
+    git("add", "-A");
+    git("commit", "-qm", "init");
+    writeFileSync(join(repo, "a.txt"), "two\n");
+    writeFileSync(join(repo, "new.txt"), "x\n");
+    git("add", "-A");
+    await revertAll(repo);
+    expect(git("status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, "new.txt"))).toBe(false);
   });
 });

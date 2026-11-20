@@ -35,7 +35,7 @@ export function useFakeClaude(plan: unknown[]): string {
   return log;
 }
 
-export function claudeCalls(log: string): { prompt: string; cwd: string; argv: string[] }[] {
+export function claudeCalls(log: string): { prompt: string; cwd: string; argv: string[]; envKeys: string[] }[] {
   if (!existsSync(log)) return [];
   return readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
 }

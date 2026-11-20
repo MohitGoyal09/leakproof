@@ -29,6 +29,17 @@ describe("renderHtml", () => {
     expect(html).not.toContain('data-count="after"');
   });
 
+  it("links the Kane run that proves each fix, and only Kane's own test manager", () => {
+    const fixedWith = (testUrl: string) => ({
+      before: scanReport([finding({ testUrl: "https://evil.example/phish" })]),
+      outcomes: [{ finding: finding({ testUrl: "https://evil.example/phish" }), attempts: [{ attempt: 1, files: ["a.ts"], verdict: "fixed" as const, testUrl }], fixed: true }],
+      after: scanReport([]),
+    });
+    expect(renderHtml(fixedWith("https://test-manager.lambdatest.com/share/proof"), "/r")).toContain('href="https://test-manager.lambdatest.com/share/proof"');
+    const html = renderHtml(fixedWith("https://evil.example/proof"), "/r");
+    expect(html).not.toContain("evil.example");
+  });
+
   it("escapes page text", () => {
     const html = renderHtml({ before: scanReport([finding({ offender: "<img src=x onerror=alert(1)>", evidence: ["<script>x</script>"] })]) }, "/r");
     expect(html).not.toContain("<img src=x");

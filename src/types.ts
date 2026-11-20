@@ -80,6 +80,8 @@ export interface FixAttempt {
   files: string[];
   verdict: "fixed" | "still-failing" | "rejected" | "error";
   note?: string;
+  /** The Kane run that proved the fix. */
+  testUrl?: string;
 }
 
 export interface FindingOutcome {

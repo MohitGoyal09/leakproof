@@ -20,7 +20,10 @@ export class KaneAuthError extends Error {
   }
 }
 
-const AUTH_SIGNAL = /not (logged|signed) in|login required|kane-cli login|unauthori[sz]ed|invalid (token|credentials)|token (expired|invalid)/i;
+// Kane's own words for a lost login. Kane's summary describes the app too, so only Kane-specific
+// phrases count there; generic words ("unauthorized") count only on Kane's stderr.
+const AUTH_ANYWHERE = /kane-cli login|token (expired|invalid)|invalid token/i;
+const AUTH_STDERR = /not (logged|signed) in|login required|unauthori[sz]ed|invalid credentials/i;
 
 export interface RunKaneOptions {
   url: string;
@@ -136,7 +139,9 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
     writeFileSync(`${base}.ndjson`, stdout);
     writeFileSync(`${base}.err`, stderr);
     const result = parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
-    const authProblem = result.reasonCode?.startsWith("auth") || (result.status === "error" && AUTH_SIGNAL.test(`${stderr}\n${result.summary}\n${result.reason ?? ""}`));
+    const authProblem =
+      result.reasonCode?.startsWith("auth") ||
+      (result.status === "error" && (AUTH_STDERR.test(stderr) || AUTH_ANYWHERE.test(`${stderr}\n${result.summary}\n${result.reason ?? ""}`)));
     if (authProblem) throw new KaneAuthError();
     return result;
   } finally {
@@ -149,5 +154,8 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
 export async function runKane(unit: RunUnit, opts: RunKaneOptions): Promise<KaneResult> {
   const first = await runOnce(unit, opts, 1);
   if (first.status !== "error" && first.status !== "timeout") return first;
-  return runOnce(unit, opts, 2);
+  const second = await runOnce(unit, opts, 2);
+  // Both runs are paid for.
+  const credits = (first.credits ?? 0) + (second.credits ?? 0);
+  return { ...second, credits: credits > 0 ? credits : undefined };
 }

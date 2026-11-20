@@ -25,14 +25,15 @@ function exhibitRef(i: number): string {
   return ref;
 }
 
+/** Only links to Kane's own test manager: the page under test can steer Kane's output. */
 function safeHref(url: string | undefined): string | undefined {
-  return url && /^https:\/\//.test(url) ? url : undefined;
+  return url && /^https:\/\/([\w-]+\.)*(lambdatest|testmuai)\.com\//.test(url) ? url : undefined;
 }
 
 const ATTEMPT_LABEL: Record<FixAttempt["verdict"], string> = {
   fixed: "Fixed, Kane re-run passed",
   "still-failing": "Kane re-run still failed",
-  rejected: "rejected: the agent touched leakproof.yml",
+  rejected: "Agent change rejected",
   error: "Agent error",
 };
 
@@ -126,7 +127,9 @@ export function renderHtml(report: FullReport, reportDir: string, secrets: reado
         ? `<h3>Fix attempts</h3><ol class="attempts">${o.attempts
             .map(
               (a) =>
-                `<li><span class="n">${a.attempt}</span><span>${esc(ATTEMPT_LABEL[a.verdict])}${a.note ? ` (${esc(a.note)})` : ""}</span>${
+                `<li><span class="n">${a.attempt}</span><span>${esc(ATTEMPT_LABEL[a.verdict])}${a.note ? ` (${esc(a.note)})` : ""}${
+                  safeHref(a.testUrl) ? ` · <a href="${esc(safeHref(a.testUrl) as string)}">Kane run that proves it</a>` : ""
+                }</span>${
                   a.files.length > 0 ? `<span class="files">${a.files.map(esc).join("<br>")}</span>` : ""
                 }</li>`,
             )
@@ -177,7 +180,7 @@ ${after ? `<div class="arrow" aria-hidden="true">→</div><div class="count seal
 </section>
 ${items.length === 0 ? `<p class="clean">No leaks found. Every check passed in a real browser.</p>` : items.map(exhibit).join("\n")}
 ${errors.length > 0 ? `<section class="errors"><span class="stamp warn">ERRORS</span><ul>${errors.map((e) => `<li><strong>${esc(e.unit)}</strong>: ${esc(e.message)}</li>`).join("")}</ul></section>` : ""}
-<footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>npx leakproof scan</code></span></footer>
+<footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>leakproof scan</code></span></footer>
 </main>
 </body>
 </html>

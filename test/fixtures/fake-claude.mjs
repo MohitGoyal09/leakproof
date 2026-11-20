@@ -19,5 +19,12 @@ if (action.write) {
   writeFileSync(p, action.write.content);
 }
 for (const args of action.git ?? []) execFileSync("git", args, { cwd: process.cwd(), stdio: "ignore" });
+// FAKE_CLAUDE_EXTRA: {"path", "content", "onCall": n}: one more file written on call n (1-based).
+const extra = process.env.FAKE_CLAUDE_EXTRA ? JSON.parse(process.env.FAKE_CLAUDE_EXTRA) : undefined;
+if (extra && extra.onCall === calls + 1) {
+  const p = join(process.cwd(), extra.path);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, extra.content);
+}
 process.stdout.write(action.stdout ?? JSON.stringify({ type: "result", result: "done" }));
 process.exit(action.exit ?? 0);

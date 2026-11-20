@@ -4,7 +4,7 @@ import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, fixBranchName, gitState, isClean, repoRoot, restoreGitState, revertAll, sameGitState } from "./git.js";
+import { changedFiles, commitAll, createBranch, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
@@ -219,6 +219,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           const prompt = buildFixPrompt(finding, flow, last, secrets);
           writeOwnFile(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
           const agent = await runAgent(root, prompt, opts.agentTimeoutMs, Object.keys(config.secrets));
+          // Unhide anything the agent (or a hook) hid through info/exclude before any check looks at the tree.
+          await restoreExclude(root, gitBefore);
           // Leakproof alone commits, and only what Kane proved: an agent that commits, stages or moves the branch is rejected.
           if (!sameGitState(gitBefore, await gitState(root))) {
             await undo();

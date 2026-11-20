@@ -107,20 +107,29 @@ describe("fixAll", () => {
     expect(existsSync(join(repo, "package.json"))).toBe(false);
   });
 
-  it("accepts a fix when a hook adds lines to .git/info/exclude, but a file hidden there still cannot pass", async () => {
+  it("accepts a fix when a hook adds lines to .git/info/exclude, but nothing can hide behind them", async () => {
     // The user's Claude hooks may append to info/exclude on every run (seen with a design-skill hook).
+    // Leakproof puts info/exclude back after each agent run, so a file hidden there (even in an unwatched
+    // folder such as vendor/) becomes a visible change that Kane checks and the commit contains.
     useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }] });
     const exclude = join(repo, ".git", "info", "exclude");
-    const hooked = `${existsSync(exclude) ? readFileSync(exclude, "utf8") : ""}\nhidden-fix.js\n.impeccable/hook.cache.json\n`;
+    const original = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
     useFakeClaude([
-      { write: { path: ".git/info/exclude", content: hooked } },
-      { write: { path: "hidden-fix.js", content: "fix\n" } },
-      { write: { path: "app.js", content: "fixed\n" } },
+      { write: { path: ".git/info/exclude", content: `${original}\n.impeccable/hook.cache.json\n` } },
+      { write: { path: ".git/info/exclude", content: `${original}\nvendor/\n` } },
     ]);
-    const report = await fixAll(config());
-    const attempts = report.outcomes![0].attempts;
-    expect(attempts.map((a) => a.verdict)).toEqual(["still-failing", "still-failing", "fixed"]);
-    expect(existsSync(join(repo, "hidden-fix.js"))).toBe(false);
+    // The second agent run also writes vendor/fix.js.
+    process.env.FAKE_CLAUDE_EXTRA = JSON.stringify({ path: "vendor/fix.js", content: "fix\n", onCall: 2 });
+    try {
+      const report = await fixAll(config());
+      const attempts = report.outcomes![0].attempts;
+      expect(attempts.map((a) => a.verdict)).toEqual(["still-failing", "fixed"]);
+      expect(attempts[1].files).toEqual(["vendor/fix.js"]);
+      expect(git("show", "--name-only", "--format=", "HEAD")).toBe("vendor/fix.js");
+      expect(existsSync(exclude) ? readFileSync(exclude, "utf8") : "").toBe(original);
+    } finally {
+      delete process.env.FAKE_CLAUDE_EXTRA;
+    }
   });
 
   it("starts the agent without the flow's secrets or Kane's tokens in its environment", async () => {

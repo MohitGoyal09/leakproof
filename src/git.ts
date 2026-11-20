@@ -78,11 +78,12 @@ export interface GitState {
   branch: string;
   flagged: string[];
   files: Record<string, string | undefined>;
+  /** info/exclude, kept apart: hooks append to it, so a change there is put back but not rejected. */
+  exclude: string | undefined;
 }
 
-// Not info/exclude: hooks in the user's Claude setup append to it on every run, and a file hidden through it
-// shows up as a gitignored file, which the ignored-file guard deletes before Kane looks.
 const GIT_FILES = ["config", "config.worktree", "info/attributes"];
+const EXCLUDE = "info/exclude";
 
 function readOrUndefined(path: string): string | undefined {
   try {
@@ -98,11 +99,25 @@ export async function gitState(root: string): Promise<GitState> {
   // `ls-files -v` marks assume-unchanged files with a lowercase tag and skip-worktree files with "S": both hide edits from status.
   const flagged = (await git(root, ["ls-files", "-v"], true)).split("\n").filter((l) => /^[a-zS] /.test(l)).map((l) => l.slice(2));
   const files = Object.fromEntries(GIT_FILES.map((f) => [f, readOrUndefined(join(gitDir, f))]));
-  return { head: await git(root, ["rev-parse", "HEAD"]), branch, flagged, files };
+  return { head: await git(root, ["rev-parse", "HEAD"]), branch, flagged, files, exclude: readOrUndefined(join(gitDir, EXCLUDE)) };
 }
 
+/** Same commit, branch, hide flags and git config. info/exclude is left out: see restoreExclude. */
 export function sameGitState(a: GitState, b: GitState): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify({ ...a, exclude: undefined }) === JSON.stringify({ ...b, exclude: undefined });
+}
+
+/**
+ * Put info/exclude back. Hooks in the user's Claude setup append to it on every run, so a change is not
+ * a reason to reject; but anything hidden through it must become visible again before Leakproof checks.
+ */
+export async function restoreExclude(root: string, state: GitState): Promise<void> {
+  const gitDir = await git(root, ["rev-parse", "--absolute-git-dir"]);
+  const info = join(gitDir, "info");
+  if (existsSync(info) && lstatSync(info).isSymbolicLink()) rmSync(info, { force: true });
+  mkdirSync(info, { recursive: true });
+  rmSync(join(gitDir, EXCLUDE), { force: true });
+  if (state.exclude !== undefined) writeFileSync(join(gitDir, EXCLUDE), state.exclude, { flag: "wx" });
 }
 
 /** Put the commit, branch, hide flags and git's config back as they were. Uncommitted edits are left to revertAll. */
@@ -116,6 +131,7 @@ export async function restoreGitState(root: string, state: GitState): Promise<vo
     rmSync(join(gitDir, f), { force: true });
     if (content !== undefined) writeFileSync(join(gitDir, f), content, { flag: "wx" });
   }
+  await restoreExclude(root, state);
   const now = await gitState(root);
   const added = now.flagged.filter((p) => !state.flagged.includes(p));
   if (added.length > 0) await git(root, ["update-index", "--no-assume-unchanged", "--no-skip-worktree", "--", ...added]);

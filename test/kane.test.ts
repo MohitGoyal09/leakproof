@@ -99,6 +99,16 @@ describe("runKane", () => {
   });
 });
 
+describe("runKane timeout", () => {
+  it("kills Kane's whole process tree on timeout instead of waiting for a child that holds the pipe", async () => {
+    useFakeKane({ HttpOnly: { fixture: "pass", exit: 0, orphan: 30_000 } });
+    const started = Date.now();
+    const r = await runKane(unit("assert HttpOnly"), { ...opts(), hardTimeoutMs: 1_000 });
+    expect(r.status).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(10_000);
+  }, 20_000);
+});
+
 describe("runKane login detection", () => {
   it("explains how to log in when Kane is logged out", async () => {
     const { KaneAuthError } = await import("../src/kane.js");

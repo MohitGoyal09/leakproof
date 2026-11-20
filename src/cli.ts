@@ -6,7 +6,7 @@ import { Command, CommanderError } from "commander";
 import { stopAllApps } from "./app.js";
 import { loadConfig } from "./config.js";
 import { fixAll, interruptFix } from "./fixer.js";
-import { removeVarsFiles } from "./kane.js";
+import { removeVarsFiles, stopAllKane } from "./kane.js";
 import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
 import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
@@ -151,6 +151,7 @@ if (invokedDirectly) {
   const onSignal = (sig: NodeJS.Signals) => {
     process.stderr.write(`\nleakproof: ${sig} received, undoing unproven edits and stopping the app\n`);
     removeVarsFiles();
+    stopAllKane();
     void Promise.allSettled([interruptFix(), stopAllApps()]).finally(() => process.exit(130));
   };
   process.once("SIGINT", onSignal);

@@ -31,6 +31,8 @@ export interface RunKaneOptions {
   secrets: Record<string, string>;
   timeoutS?: number;
   outDir: string;
+  /** Kill Kane after this long. Default: Kane's own timeout plus a minute. */
+  hardTimeoutMs?: number;
 }
 
 const DEFAULT_TIMEOUT_S = 180;
@@ -118,6 +120,23 @@ export function removeVarsFiles(): void {
   liveVarsFiles.clear();
 }
 
+/** Process groups of the Kane runs now going, so a timeout or Ctrl-C can kill each whole tree. */
+const liveKane = new Set<number>();
+
+function killGroup(pid: number): void {
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // group already gone
+  }
+}
+
+/** Called by the CLI on SIGINT/SIGTERM: Kane runs in its own process group, so the terminal's signal does not reach it. */
+export function stopAllKane(): void {
+  for (const pid of liveKane) killGroup(pid);
+  liveKane.clear();
+}
+
 async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Promise<KaneResult> {
   const bin = kaneBin();
   const varsPath = join(tmpdir(), `leakproof-vars-${randomUUID()}.json`);
@@ -126,11 +145,24 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
   writeFileSync(varsPath, JSON.stringify(vars), { mode: 0o600, flag: "wx" });
   const timeoutS = opts.timeoutS ?? DEFAULT_TIMEOUT_S;
   try {
-    const res = await execa(
+    // Kane's launcher starts children that keep its output pipe open. Killing only the launcher leaves the
+    // pipe open and the run hangs, so Kane gets its own process group and a timeout kills the whole group.
+    const child = execa(
       bin,
       ["run", unit.objective, "--url", opts.url, "--agent", "--headless", "--timeout", String(timeoutS), "--variables-file", varsPath],
-      { reject: false, stdin: "ignore", timeout: (timeoutS + 60) * 1000 },
+      { reject: false, stdin: "ignore", detached: true },
     );
+    const pid = child.pid;
+    if (pid) liveKane.add(pid);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (pid) killGroup(pid);
+    }, opts.hardTimeoutMs ?? (timeoutS + 60) * 1000);
+    const res = await child.finally(() => {
+      clearTimeout(timer);
+      if (pid) liveKane.delete(pid);
+    });
     if ((res as { code?: string }).code === "ENOENT" || /ENOENT/.test(String(res.message ?? ""))) throw new KaneNotFoundError(bin);
     const secrets = Object.values(opts.secrets);
     const stdout = redactSecrets(typeof res.stdout === "string" ? res.stdout : "", secrets);
@@ -138,7 +170,7 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
     const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${attempt > 1 ? `.try${attempt}` : ""}`);
     writeOwnFile(`${base}.ndjson`, stdout);
     writeOwnFile(`${base}.err`, stderr);
-    const result = parseNdjson(stdout, res.exitCode ?? (res.timedOut ? 3 : 2));
+    const result = parseNdjson(stdout, timedOut ? 3 : (res.exitCode ?? 2));
     const authProblem =
       result.reasonCode?.startsWith("auth") ||
       (result.status === "error" && (AUTH_STDERR.test(stderr) || AUTH_ANYWHERE.test(`${stderr}\n${result.summary}\n${result.reason ?? ""}`)));

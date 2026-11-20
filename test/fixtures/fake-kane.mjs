@@ -20,6 +20,12 @@ if (log && existsSync(log)) calls = readFileSync(log, "utf8").split("\n").filter
 if (log) appendFileSync(log, JSON.stringify({ key, argv, varsHadSecret }) + "\n");
 if (!key) { process.stdout.write(readFileSync(join(here, "ndjson", "pass.ndjson"))); process.exit(0); }
 const entry = Array.isArray(plan[key]) ? plan[key][Math.min(calls, plan[key].length - 1)] : plan[key];
+// "orphan": leave a child that holds stdout open, like Kane's real launcher does, then hang.
+if (entry.orphan) {
+  const { spawn } = await import("node:child_process");
+  spawn(process.execPath, ["-e", `setTimeout(() => {}, ${entry.orphan})`], { stdio: ["ignore", "inherit", "inherit"] });
+  await new Promise((r) => setTimeout(r, entry.orphan));
+}
 if (entry.sleep) await new Promise((r) => setTimeout(r, entry.sleep));
 process.stdout.write(readFileSync(join(here, "ndjson", `${entry.fixture}.ndjson`)));
 if (entry.stderr) process.stderr.write(entry.stderr);

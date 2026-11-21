@@ -2,6 +2,12 @@
 
 **Find the leaks a screenshot can't see. Have your coding agent fix them. Make Kane prove every fix.**
 
+[![Leakproof demo video: 6 leaks found, 0 after fixes, every fix verified by a Kane re-run](docs/assets/demo-video.jpg)](https://youtu.be/tqZkZahSCLE)
+
+**[Watch the 3-minute demo](https://youtu.be/tqZkZahSCLE)**: one real `leakproof fix` run, a fix Kane rejected and the retry it proved, a real open-source app, and the guard tests that stop the agent from cheating.
+
+[Demo video](https://youtu.be/tqZkZahSCLE) · [For judges](#for-judges) · [What it checks](#what-it-checks) · [How the loop works](#how-the-loop-works) · [Quick start](#quick-start) · [Safety rules](#safety-rules) · [Limits](#limits)
+
 Your app can look perfect and still leak. A session cookie readable by any script. An API key in `localStorage`. A request failing with a 500 behind a page that renders fine. Production code calling a staging server. AI coding agents ship these all the time, because they check what the page *looks* like.
 
 Leakproof walks your app's real user flows in a real browser with [Kane CLI](https://github.com/LambdaTest/kane-cli), checks the things users never see, and hands each leak to Claude Code with Kane's evidence. A fix counts only when Kane re-runs the same check and it passes.
@@ -12,6 +18,7 @@ Leakproof walks your app's real user flows in a real browser with [Kane CLI](htt
 
 | Criterion | Where to check it |
 |---|---|
+| See it run (3 min) | [Demo video on YouTube](https://youtu.be/tqZkZahSCLE): every number in it comes from the recorded runs in this repo |
 | Works end to end | `bash scripts/real-world.sh scan` (a real app) or `bash scripts/demo.sh fix` (the demo shop) |
 | Kane caught or proved something | Real app: [docs/real-world/cypress-rwa](docs/real-world/cypress-rwa/) (2 real React errors, a missing Secure flag). Demo: [docs/sample-run](docs/sample-run/) (6 → 0) |
 | The agent and Kane talk | The prompts the agent got, with Kane's evidence: [real app](docs/real-world/cypress-rwa/prompts/), [demo](docs/sample-run/prompts/). Kane's re-run verdict goes back on a fail ([How Kane and the agent talk](#how-the-loop-works)) |
@@ -180,7 +187,7 @@ Each check is one Kane run of about 5–30 credits (about 20 on average) and 50�
 
 ```bash
 npm install
-npm test          # 151 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 152 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

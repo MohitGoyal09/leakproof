@@ -6,6 +6,21 @@ Your app can look perfect and still leak. A session cookie readable by any scrip
 
 Leakproof walks your app's real user flows in a real browser with [Kane CLI](https://github.com/LambdaTest/kane-cli), checks the things users never see, and hands each leak to Claude Code with Kane's evidence. A fix counts only when Kane re-runs the same check and it passes.
 
+**Results from real runs:** on a real open-source app we did not write ([cypress-realworld-app](docs/real-world/cypress-rwa/)), 3 → 0 leaks; on our demo shop with six planted leaks ([sample run](docs/sample-run/)), 6 → 0. Every fix is proven by a Kane re-run, and every false alarm and half-fix is shown.
+
+## For judges
+
+| Criterion | Where to check it |
+|---|---|
+| Works end to end | `bash scripts/real-world.sh scan` (a real app) or `bash scripts/demo.sh fix` (the demo shop) |
+| Kane caught or proved something | Real app: [docs/real-world/cypress-rwa](docs/real-world/cypress-rwa/) (2 real React errors, a missing Secure flag). Demo: [docs/sample-run](docs/sample-run/) (6 → 0) |
+| The agent and Kane talk | The prompts the agent got, with Kane's evidence: [real app](docs/real-world/cypress-rwa/prompts/), [demo](docs/sample-run/prompts/). Kane's re-run verdict goes back on a fail ([How Kane and the agent talk](#how-the-loop-works)) |
+| Verified | Each report links the failing Kane run and the Kane run that proves the fix: [real app report](docs/real-world/cypress-rwa/report.html), [demo report](docs/sample-run/report.html) |
+| Closed loop | One commit per proven fix ([commits](docs/real-world/cypress-rwa/commits.txt)); a leak hidden behind another was caught by the re-scan and fixed in the same run ([terminal.txt](docs/real-world/cypress-rwa/terminal.txt)) |
+| The agent cannot cheat | Guard tests in [test/fixer.test.ts](test/fixer.test.ts): git commits, gitignored files, build config, deleting the failing request, secrets in its environment |
+| Honest limits | [Limits](#limits), the [control runs](docs/sample-run/control.txt) with one Kane false alarm, and what Leakproof [missed on the real app](docs/real-world/cypress-rwa/README.md#what-leakproof-missed-here) |
+| Check without credits | Open the two `report.html` files, read `terminal.txt` and `fixes.patch` in each folder, run `npm test` |
+
 ```
 leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
 
@@ -130,6 +145,8 @@ bash scripts/demo.sh fix    # 6 → 0, each fix proven by Kane
 bash scripts/demo.sh control   # the shop fixed by hand: 0 leaks
 ```
 
+To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [cypress-realworld-app](https://github.com/cypress-io/cypress-realworld-app) at a pinned commit and runs Leakproof on it with [this config](docs/real-world/cypress-rwa/leakproof.yml). Results: [docs/real-world/cypress-rwa](docs/real-world/cypress-rwa/).
+
 ## Safety rules
 
 - `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix. Only Leakproof commits, and only the files Kane checked.
@@ -152,7 +169,7 @@ bash scripts/demo.sh control   # the shop fixed by hand: 0 leaks
 - Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
 - Only Claude Code is supported as the agent.
-- The evidence so far is one demo shop with six planted leaks. Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A leak that every scan misses is not reported.
+- The evidence so far is two apps: the demo shop with six planted leaks, and one real open-source app ([cypress-realworld-app](docs/real-world/cypress-rwa/)). Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A leak that every scan misses is not reported, and the storage check is narrow: on the real app it missed the user's auth state in `localStorage`.
 
 ## Cost
 
@@ -162,7 +179,7 @@ Each check is one Kane run of about 5–30 credits (about 20 on average) and 50�
 
 ```bash
 npm install
-npm test          # 132 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 143 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

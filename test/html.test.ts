@@ -40,6 +40,22 @@ describe("renderHtml", () => {
     expect(html).not.toContain("evil.example");
   });
 
+  it("does not repeat Kane's evidence inside the diagnosis, and loads screenshots at once", () => {
+    const html = renderHtml(
+      { before: scanReport([finding({ reason: "Every request finished too slowly. Evidence: GET /api/hero took 3020 ms.", screenshot: "/r/evidence/home__network.jpg" })]) },
+      "/r",
+    );
+    expect(html).toContain("Every request finished too slowly.</p>");
+    expect(html).not.toContain("Evidence: GET /api/hero");
+    expect(html).not.toContain('loading="lazy"');
+    expect(html).toContain('<a href="evidence/home__network.jpg"');
+  });
+
+  it("names the failing Kane run", () => {
+    const html = renderHtml({ before: scanReport([finding()]) }, "/r");
+    expect(html).toContain("Failing Kane run");
+  });
+
   it("escapes page text", () => {
     const html = renderHtml({ before: scanReport([finding({ offender: "<img src=x onerror=alert(1)>", evidence: ["<script>x</script>"] })]) }, "/r");
     expect(html).not.toContain("<img src=x");

@@ -93,6 +93,11 @@ code{font:13px var(--mono);color:var(--ink)}
 @media (max-width:760px){.sheet{padding:28px 16px 48px}.cert{grid-template-columns:1fr}.specimen{grid-column:1;grid-row:auto}.specimen dd{text-align:left}.count .num{font-size:88px}.ex-body{grid-template-columns:1fr}.verdict-line{margin-left:0}}
 `;
 
+/** Kane's diagnosis without the evidence it often appends: the report already shows that evidence above it. */
+function diagnosis(f: Finding): string {
+  return f.evidence.length > 0 ? f.reason.replace(/\s*Evidence:[\s\S]*$/, "") : f.reason;
+}
+
 /** Render the report as one HTML file. Every string is escaped and secret values are masked. */
 export function renderHtml(report: FullReport, reportDir: string, secrets: readonly string[] = []): string {
   const esc = makeEsc(secrets);
@@ -128,7 +133,7 @@ export function renderHtml(report: FullReport, reportDir: string, secrets: reado
             .map(
               (a) =>
                 `<li><span class="n">${a.attempt}</span><span>${esc(ATTEMPT_LABEL[a.verdict])}${a.note ? ` (${esc(a.note)})` : ""}${
-                  safeHref(a.testUrl) ? ` · <a href="${esc(safeHref(a.testUrl) as string)}">Kane run that proves it</a>` : ""
+                  safeHref(a.testUrl) ? ` · <a href="${esc(safeHref(a.testUrl) as string)}">Kane run that proves the fix</a>` : ""
                 }</span>${
                   a.files.length > 0 ? `<span class="files">${a.files.map(esc).join("<br>")}</span>` : ""
                 }</li>`,
@@ -142,10 +147,10 @@ export function renderHtml(report: FullReport, reportDir: string, secrets: reado
 <div class="ex-body${shot ? "" : " no-shot"}"><div>
 <p class="why">${esc(CHECKS[f.check].why)}</p>
 <h3>What Kane saw</h3><pre class="readings">${readings.map(esc).join("\n")}</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">${esc(f.reason)}</p>
+<h3>Kane's diagnosis</h3><p class="diagnosis">${esc(diagnosis(f))}</p>
 ${attempts}
-${run ? `<p class="links"><a href="${esc(run)}" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>` : ""}
-</div>${shot ? `<figure><img src="${esc(shot)}" alt="Screenshot of the failing step in the ${esc(f.flow)} flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure>` : ""}</div>
+${run ? `<p class="links"><a href="${esc(run)}" rel="noopener noreferrer">Failing Kane run in Test Manager</a></p>` : ""}
+</div>${shot ? `<figure><a href="${esc(shot)}"><img src="${esc(shot)}" alt="Screenshot of the failing step in the ${esc(f.flow)} flow"></a><figcaption>Failing step, captured by Kane. Click to open full size.</figcaption></figure>` : ""}</div>
 </article>`;
   };
 

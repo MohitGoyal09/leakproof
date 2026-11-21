@@ -1,0 +1,29 @@
+# Control run 1 (21 Nov 2026): the shop fixed by hand (examples/shop.fixed.patch)
+
+leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
+
+  PASS   home          Hidden server errors
+  PASS   home          Slow requests
+  PASS   add-to-cart   Console errors
+  LEAK   checkout      Cookie flags          Cookie flags check failed in the checkout flow
+  PASS   checkout      Secrets in storage
+  PASS   checkout      Environment leaks
+
+  1 leak found  ·  107 credits  ·  2m 54s
+  Report  .leakproof/report.html
+
+
+# Control run 2 (21 Nov 2026): the same hand-fixed shop
+
+leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
+
+  PASS   home          Hidden server errors
+  PASS   home          Slow requests
+  PASS   add-to-cart   Console errors
+  PASS   checkout      Secrets in storage
+  PASS   checkout      Environment leaks
+  PASS   checkout      Cookie flags
+
+  No leaks found  ·  108 credits  ·  2m 43s
+  Report  .leakproof/report.html
+

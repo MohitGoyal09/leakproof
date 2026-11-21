@@ -1,0 +1,13 @@
+
+leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
+
+  LEAK   home          Hidden server errors  GET /api/recommendations returned 500
+  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch)
+  LEAK   checkout      Secrets in storage    Authentication token stored in localStorage
+  LEAK   checkout      Environment leaks     POST http://staging.localhost:3000/api/collect
+  LEAK   checkout      Cookie flags          Login cookie is missing the HttpOnly flag
+  LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
+
+  6 leaks found  ·  167 credits  ·  3m 25s
+  Report  .leakproof/report.html
+

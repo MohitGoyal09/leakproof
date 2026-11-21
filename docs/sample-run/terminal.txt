@@ -2,10 +2,10 @@
 leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
 
   LEAK   home          Hidden server errors  GET /api/recommendations returned 500
-  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1507 ms (fetch)
+  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch)
   LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
+  LEAK   checkout      Secrets in storage    Checkout session leaves a sensitive-named key in local…
   LEAK   checkout      Environment leaks     POST http://staging.localhost:3000/api/collect
-  LEAK   checkout      Secrets in storage    Authenticated checkout retains a prohibited localStora…
   LEAK   checkout      Cookie flags          Authentication cookie lacks HttpOnly protection
 
   6 leaks found. Handing each one to Claude Code, then asking Kane to prove the fix.
@@ -16,27 +16,27 @@ leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
   Exhibit B  Slow requests · home  Slow requests: /api/hero
     attempt 1  edited app/api/hero/route.ts, app/page.…  → Kane re-run passed  FIXED
 
-  Exhibit C  Console errors · add-to-cart  Add-to-cart triggers undefined tracking exception
+  Exhibit C  Console errors · add-to-cart  Console errors: Cannot read properties of undefined (reading 'track')
     attempt 1  edited app/Storefront.tsx  → Kane re-run passed  FIXED
 
   Exhibit D  Cookie flags · checkout  Authentication cookie lacks HttpOnly protection
     attempt 1  edited app/api/login/route.ts  → Kane re-run passed  FIXED
 
-  Exhibit E  Secrets in storage · checkout  Authenticated checkout retains a prohibited localStorage key
-    attempt 1  edited app/login/page.tsx  → Kane re-run passed  FIXED
+  Exhibit E  Secrets in storage · checkout  Checkout session leaves a sensitive-named key in local storage
+    attempt 1  edited app/api/login/route.ts, app/logi…  → Kane re-run passed  FIXED
 
-  Exhibit F  Environment leaks · checkout  Sign-in sends data to a staging host
+  Exhibit F  Environment leaks · checkout  Sign-in sends telemetry to a staging host
     attempt 1  edited app/checkout/page.tsx  → Kane re-run passed  FIXED
 
   Re-scanning every flow to catch regressions
 
   PASS   home          Hidden server errors
-  PASS   home          Slow requests
-  PASS   add-to-cart   Console errors
-  PASS   checkout      Secrets in storage
   PASS   checkout      Cookie flags
+  PASS   home          Slow requests
+  PASS   checkout      Secrets in storage
   PASS   checkout      Environment leaks
+  PASS   add-to-cart   Console errors
 
-  6 → 0 leaks  ·  6 fixes verified by Kane  ·  248 credits  ·  17m 35s
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  317 credits  ·  17m 31s
   Report  .leakproof/report.html
 

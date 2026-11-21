@@ -70,9 +70,9 @@ code{font:13px var(--mono);color:var(--ink)}
 <h1>Leak report</h1>
 <dl class="specimen">
 <dt>App</dt><dd>http://localhost:3000</dd>
-<dt>Scanned</dt><dd>Thu, 19 Nov 2026 18:38:09 UTC</dd>
+<dt>Scanned</dt><dd>Sat, 21 Nov 2026 07:10:53 UTC</dd>
 <dt>Checks</dt><dd>6</dd>
-<dt>Kane credits</dt><dd>248</dd>
+<dt>Kane credits</dt><dd>317</dd>
 </dl>
 </header>
 <section class="verdict" aria-label="Verdict">
@@ -86,9 +86,9 @@ code{font:13px var(--mono);color:var(--ink)}
 <div class="ex-body"><div>
 <p class="why">The page looks fine, but a request behind it is failing.</p>
 <h3>What Kane saw</h3><pre class="readings">GET /api/recommendations returned 500</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">The site’s recommendations service was unavailable while the home page loaded, so its request returned a 500 error even though the product list appeared.</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/api/recommendations/route.ts</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THM7TWFR40D2NMHM156NC2/dashboard/share/US_L0UNMDU2GRAJG1NFUKUMSS6X4V96FGHDW6076TCPE4O94IQ2KTKQ5CQKZPUHKDC4?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>Kane's diagnosis</h3><p class="diagnosis">The home page calls the recommendations service, but that service is unavailable and returns an error instead of a successful response.</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFA4GR2F0Y89JXTEQHYCW8/dashboard/share/US_L6LNZIR4N92EEG72OVQ1UKGGF0V2EBWDCQDNEW745M98LIPNBXWABF1N9ZOZJAW5?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/api/recommendations/route.ts</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF3C7CZYS0E996WZMBF7VC/dashboard/share/US_AU5T2E55IP0KNC4D7IG6BA6584R5URB42A9759W6QRN4433MIQFFV6LQAARFI4G3?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/home__network.jpg" alt="Screenshot of the failing step in the home flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 <article class="exhibit" id="exhibit-b">
@@ -96,25 +96,25 @@ code{font:13px var(--mono);color:var(--ink)}
 <h2>Slow requests: /api/hero</h2>
 <div class="ex-body"><div>
 <p class="why">A page, image or API request is slow enough for users to notice.</p>
-<h3>What Kane saw</h3><pre class="readings">GET /?_rsc=NBYwLSnedbI3BPhy took 1507 ms (fetch)
-GET / took 1526 ms (document)
-GET / took 1532 ms (document)
-GET / took 1534 ms (document)
-GET /api/hero took 3004 ms (image)</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">Kane&#39;s check failed: every network request of type document, image, fetch or xhr in this step finished in under 1000 ms. Evidence: GET /?_rsc=NBYwLSnedbI3BPhy took 1507 ms (fetch); GET / took 1526 ms (document); GET / took 1532 ms (document); GET / took 1534 ms (document); GET /api/hero took 3004 ms (image).</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/api/hero/route.ts<br>app/page.tsx</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THM7TSK4J2DJY8MGS5MYXR/dashboard/share/US_X7RPZRA134W1DPP5ATJ7P4NR3L6PH80YJ8XNXIGS9CTELDYVVH7F7W1IA94DLSGY?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>What Kane saw</h3><pre class="readings">GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch)
+GET /?_rsc=NBYwLSnedbI3BPhy took 1505 ms (fetch)
+GET /?_rsc=NBYwLSnedbI3BPhy took 1506 ms (fetch)
+GET / took 1528 ms (document)
+GET / took 1533 ms (document)</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">Kane&#39;s check failed: every network request of type document, image, fetch or xhr in this step finished in under 1000 ms. Evidence: GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch); GET /?_rsc=NBYwLSnedbI3BPhy took 1505 ms (fetch); GET /?_rsc=NBYwLSnedbI3BPhy took 1506 ms (fetch); GET / took 1528 ms (document); GET / took 1533 ms (document).</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFCSSYVWQ0MX9D4MXSS9SH/dashboard/share/US_VLC4DKQFV94JOQVGNR2ZLV1587HDTBNIFO982X6KOKZ1X13LT1AXX2RAS1QUXWTK?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/api/hero/route.ts<br>app/page.tsx</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF3C92FQG54QHY7VNW49Y1/dashboard/share/US_KVDWOXRDQV7VYWFIIXCAI1VKWT230ZS5WG5KSTNDGX4GI0XALL2KPXJ844FTJUQY?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/home__vitals.jpg" alt="Screenshot of the failing step in the home flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 <article class="exhibit" id="exhibit-c">
 <div class="ex-head"><span class="ex-ref">Exhibit C</span><span class="ex-check">Console errors · add-to-cart flow</span><span class="stamps"><span class="stamp leak">LEAK</span><span aria-hidden="true">→</span><span class="stamp sealed">FIXED</span></span></div>
-<h2>Add-to-cart triggers undefined tracking exception</h2>
+<h2>Console errors: Cannot read properties of undefined (reading &#39;track&#39;)</h2>
 <div class="ex-body"><div>
 <p class="why">A user action throws an error the UI hides.</p>
 <h3>What Kane saw</h3><pre class="readings">Cannot read properties of undefined (reading &#39;track&#39;)</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">The add-to-cart action tries to use tracking information that is missing. The cart still updates to 1, but the browser reports an error during the action.</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/Storefront.tsx</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THM7QS65405TBC1DBRHKJJ/dashboard/share/US_GUYP5DUCJIFI4DHKB15ZM1U0LZJF4NGMD5SA7VUE2XLFDIKA802X4GA3RETVUWP3?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>Kane's diagnosis</h3><p class="diagnosis">Kane&#39;s check failed: there is no console message at level &#39;error&#39; other than &#39;Failed to load resource&#39; messages. Evidence: Cannot read properties of undefined (reading &#39;track&#39;).</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFF2S8GNMH1CW14RSJPNNZ/dashboard/share/US_LOYTAN8NBQWXG6V24QIYDRVK5Y797KZ4HVKHTRF0A6P2BQ7W881T7I6BI4UHSPVK?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/Storefront.tsx</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF3C96785H1REZJSCE1SQS/dashboard/share/US_X3N2NURS5BXE0FY3ITJ207WEHUTYW7AMNUV8IOTWFA2ED3PQT9GP80CIF2CJFX5D?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/add-to-cart__console.jpg" alt="Screenshot of the failing step in the add-to-cart flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 <article class="exhibit" id="exhibit-d">
@@ -122,36 +122,36 @@ GET /api/hero took 3004 ms (image)</pre>
 <h2>Authentication cookie lacks HttpOnly protection</h2>
 <div class="ex-body"><div>
 <p class="why">A session cookie without HttpOnly or Secure can be read by injected scripts or sent over plain HTTP.</p>
-<h3>What Kane saw</h3><pre class="readings">After the successful sign-in, at least one cookie was present without the HttpOnly flag. The required cookie-security check therefore failed.</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">After the successful sign-in, at least one cookie was present without the HttpOnly flag. The required cookie-security check therefore failed.</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/api/login/route.ts</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THQG5MRX5GQMBQ92JRHNTH/dashboard/share/US_UWZ69JD5OHFEKNYIEDCANWO56KIXXJKBBK6CD01USG7NG1PUTL6031MMCJVR2X5O?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>What Kane saw</h3><pre class="readings">After a successful sign-in, the site created at least one cookie, but the required check found that one or more cookies did not have the HttpOnly protection enabled.</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">After a successful sign-in, the site created at least one cookie, but the required check found that one or more cookies did not have the HttpOnly protection enabled.</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFHSYGCKQ3P368CYR5APMT/dashboard/share/US_R0683F0EST91G7BI031C3YR0NIAOCLBE8BN43O36HS8L9YXCWZN9Q4UHEQJBB310?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/api/login/route.ts</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF6K4BGJHPK4QTXEW09AJ5/dashboard/share/US_I81WXO9OED55IFMWYP01O28Z92QH88TWB438URSPIXB58HJJ32WMG274GBB54G0J?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/checkout__cookies.jpg" alt="Screenshot of the failing step in the checkout flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 <article class="exhibit" id="exhibit-e">
 <div class="ex-head"><span class="ex-ref">Exhibit E</span><span class="ex-check">Secrets in storage · checkout flow</span><span class="stamps"><span class="stamp leak">LEAK</span><span aria-hidden="true">→</span><span class="stamp sealed">FIXED</span></span></div>
-<h2>Authenticated checkout retains a prohibited localStorage key</h2>
+<h2>Checkout session leaves a sensitive-named key in local storage</h2>
 <div class="ex-body"><div>
 <p class="why">Tokens and keys in localStorage are readable by any script on the page.</p>
-<h3>What Kane saw</h3><pre class="readings">The signed-in checkout session stored at least one browser localStorage key whose name contains “token”, “secret”, or “api_key”, contrary to the required storage policy.</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">The signed-in checkout session stored at least one browser localStorage key whose name contains “token”, “secret”, or “api_key”, contrary to the required storage policy.</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/login/page.tsx</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THP017V87YW1X09WV02K08/dashboard/share/US_JXHOWPTFT4U7XKVIUA86SZGATU7G5XP7LOGESVBB2LGZWEB12WP5JKU0J5DJ4VIR?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>What Kane saw</h3><pre class="readings">The application saved or retained a local-storage key containing “token”, “secret”, or “api_key” after sign-in, contrary to the required storage-safety check.</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">The application saved or retained a local-storage key containing “token”, “secret”, or “api_key” after sign-in, contrary to the required storage-safety check.</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFMQJXWGCW3QJZ1KJFFVTZ/dashboard/share/US_7E3T9YE2JZ3FXABAZXEL14C4R0HOTEQORTC4SS4IXWVVAUD6ZBWU4FHDCLPUZS96?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/api/login/route.ts<br>app/login/page.tsx</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF50WPZ3VPXHMEAX05RDG6/dashboard/share/US_9UR1AANUIIN3SLKPQ8RU2R5VQ4WB73S5O25JF66QX9QJUILIK07RCPJX1S39JU0L?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/checkout__storage.jpg" alt="Screenshot of the failing step in the checkout flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 <article class="exhibit" id="exhibit-f">
 <div class="ex-head"><span class="ex-ref">Exhibit F</span><span class="ex-check">Environment leaks · checkout flow</span><span class="stamps"><span class="stamp leak">LEAK</span><span aria-hidden="true">→</span><span class="stamp sealed">FIXED</span></span></div>
-<h2>Sign-in sends data to a staging host</h2>
+<h2>Sign-in sends telemetry to a staging host</h2>
 <div class="ex-body"><div>
 <p class="why">Production code is calling a staging, dev or internal host.</p>
 <h3>What Kane saw</h3><pre class="readings">POST http://staging.localhost:3000/api/collect</pre>
-<h3>Kane's diagnosis</h3><p class="diagnosis">The sign-in flow contacted a staging-named host instead of keeping its requests on the approved local application host.</p>
-<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed</span><span class="files">app/checkout/page.tsx</span></li></ol>
-<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7THPCB1NCR5ZF5A1KD17SJC/dashboard/share/US_0KHIA6F4ECJOVE0CR25WM5JUBM9QOF9G5KYDQKXIZTN3AF3C70G8SN0857SJCSV8?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
+<h3>Kane's diagnosis</h3><p class="diagnosis">After a successful sign-in, the app sent collection data to staging.localhost:3000 instead of keeping requests on the approved localhost:3000 host.</p>
+<h3>Fix attempts</h3><ol class="attempts"><li><span class="n">1</span><span>Fixed, Kane re-run passed · <a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YFQSEZ6SK4P4RGKEP2XBDS/dashboard/share/US_IQFBHCJOUG6WYLHCSWT921EWJ6SAQMXO4VTOUKL9AEIKL2FN1K1P6NCJJVMGZK27?type=summary&amp;agentView=true&amp;fqdn=summary-page">Kane run that proves it</a></span><span class="files">app/checkout/page.tsx</span></li></ol>
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M7YF5BTPY5DEWWCJ81A23KS5/dashboard/share/US_EBCDWVXS6ZX0AYQFGLVZ94BKG2HG0K6A0YJ3SJRWDCQFY6KLH0LNLLTQDBQJ2KRO?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Open this Kane run in Test Manager</a></p>
 </div><figure><img src="evidence/checkout__env-leak.jpg" alt="Screenshot of the failing step in the checkout flow" loading="lazy"><figcaption>Failing step, captured by Kane</figcaption></figure></div>
 </article>
 
-<footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>npx leakproof scan</code></span></footer>
+<footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>leakproof scan</code></span></footer>
 </main>
 </body>
 </html>

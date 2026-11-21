@@ -1,6 +1,6 @@
-146d17f fix: leakproof network in home
-66e6909 fix: leakproof vitals in home
-e53e2ba fix: leakproof console in add-to-cart
-8c0a367 fix: leakproof cookies in checkout
-a90e825 fix: leakproof storage in checkout
-a5d3ea6 fix: leakproof env-leak in checkout
+7637d68 fix: leakproof network in home
+0f8f436 fix: leakproof vitals in home
+2f18113 fix: leakproof console in add-to-cart
+2428128 fix: leakproof cookies in checkout
+44822df fix: leakproof storage in checkout
+1f0babf fix: leakproof env-leak in checkout

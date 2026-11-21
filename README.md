@@ -10,14 +10,16 @@ Leakproof walks your app's real user flows in a real browser with [Kane CLI](htt
 leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
 
   LEAK   home          Hidden server errors  GET /api/recommendations returned 500
-  LEAK   home          Slow requests         GET / took 1526 ms (document)
-  LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
-  LEAK   checkout      Cookie flags          Authentication cookie lacks HttpOnly protection
-  LEAK   checkout      Secrets in storage    localStorage holds a token and a live key
+  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch)
+  LEAK   checkout      Secrets in storage    Authentication token stored in localStorage
   LEAK   checkout      Environment leaks     POST http://staging.localhost:3000/api/collect
+  LEAK   checkout      Cookie flags          Login cookie is missing the HttpOnly flag
+  LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
 
-  6 leaks found  ·  141 credits  ·  2m 4s
+  6 leaks found  ·  167 credits  ·  3m 25s
 ```
+
+This is a real scan of the demo shop: [docs/sample-run/scan.txt](docs/sample-run/scan.txt).
 
 Then `leakproof fix` on the same shop, a real run with Claude Code (Opus 5.5):
 
@@ -34,10 +36,10 @@ Then `leakproof fix` on the same shop, a real run with Claude Code (Opus 5.5):
   PASS   add-to-cart   Console errors
   PASS   checkout      Environment leaks
 
-  6 → 0 leaks  ·  6 fixes verified by Kane  ·  248 credits  ·  17m 35s
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  317 credits  ·  17m 31s
 ```
 
-The full output, the report, the screenshots and the agent's patch from this run are in [docs/sample-run](docs/sample-run/).
+The full output, the report with the Kane run that proves each fix, the prompts the agent got, its patch and a review of each fix are in [docs/sample-run](docs/sample-run/).
 
 ## What it checks
 
@@ -150,17 +152,17 @@ bash scripts/demo.sh control   # the shop fixed by hand: 0 leaks
 - Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
 - Only Claude Code is supported as the agent.
-- The evidence so far is one demo shop with six planted leaks, real fix runs and one hand-fixed control. Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, which is why a missed leak now gets its own fix pass. A leak that both scans miss is not reported.
+- The evidence so far is one demo shop with six planted leaks. Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A leak that every scan misses is not reported.
 
 ## Cost
 
-Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 90–140 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 248 credits and took 18 minutes. The credit total counts every Kane run, the fix re-runs included.
+Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 100–170 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 317 credits and took 18 minutes. The total counts every Kane run.
 
 ## Development
 
 ```bash
 npm install
-npm test          # 114 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 132 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

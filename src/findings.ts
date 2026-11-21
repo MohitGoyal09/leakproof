@@ -180,6 +180,14 @@ export function requestsKept(f: Finding, sessionDir: string | undefined, outDir:
   return paths.every((p) => requestStillSucceeds(pack, p));
 }
 
+const TITLE_MAX = 90;
+
+/** A title is one line, at most 90 characters: a console error's stack trace belongs in the evidence, not the heading. */
+function shortTitle(text: string): string {
+  const line = text.split("\n")[0].replace(/\s+/g, " ").trim();
+  return line.length <= TITLE_MAX ? line : `${line.slice(0, TITLE_MAX - 1).trimEnd()}…`;
+}
+
 /** A finding for a failed run; null for passed, error or timeout (those are not leaks). */
 export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack, ctx?: EvidenceContext): Finding | null {
   if (result.status !== "failed") return null;
@@ -188,12 +196,13 @@ export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack
   const label = CHECKS[unit.check].label;
   // Kane sometimes fails an assertion but doubts its own verdict; then its wording is not shown, our raw evidence is.
   const trustVerdict = result.verdict?.confirmed !== false;
-  const title =
+  const title = shortTitle(
     trustVerdict && result.verdict?.bugTitle
       ? result.verdict.bugTitle
       : derived.offender
         ? `${label}: ${derived.offender}`
-        : `${label} check failed in the ${unit.flow} flow`;
+        : `${label} check failed in the ${unit.flow} flow`,
+  );
   const evidenceText = derived.evidence.length > 0 ? ` Evidence: ${derived.evidence.join("; ")}.` : "";
   const reason = trustVerdict
     ? result.verdict?.rootCause ?? result.reason ?? result.summary

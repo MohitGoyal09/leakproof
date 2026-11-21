@@ -67,6 +67,18 @@ describe("toFinding", () => {
     expect(toFinding(unit, result("infra", 1))).toBeNull();
   });
 
+  it("keeps a title short: first line of a long console error, cut at 90 characters", () => {
+    const consoleUnit = { ...unit, id: "pay:console", check: "console" as const };
+    const long = "Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?\n    at NumberFormatCustom (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:36:10)";
+    const pack = { har: [], console: [{ level: "error", text: long }] } as unknown as EvidencePack;
+    const f = toFinding(consoleUnit, { ...result("fail", 1), verdict: undefined }, pack, ctx)!;
+    expect(f.title.length).toBeLessThanOrEqual(90);
+    expect(f.title).toMatch(/^Console errors: Warning: Function components cannot be given refs/);
+    expect(f.title).not.toContain("\n");
+    expect(f.title.endsWith("…")).toBe(true);
+    expect(f.evidence[0]).toBe(long);
+  });
+
   it("failed result maps Kane's verdict and the assertion", () => {
     const f = toFinding(unit, result("fail", 1))!;
     expect(f.id).toBe("checkout:cookies");

@@ -145,6 +145,16 @@ export function readEvidencePack(sessionDir: string, outDir: string, unitId: str
   return { har, console: consoleLines, ...(screenshot ? { screenshot } : {}) };
 }
 
+/**
+ * Whether a passing re-run still made the request a `network` finding was about, and it succeeded.
+ * undefined when the run left no network log. Matched on the path, so a changed query is the same request.
+ */
+export function requestStillSucceeds(pack: EvidencePack, path: string): boolean | undefined {
+  if (pack.har.length === 0) return undefined;
+  const wanted = path.split("?")[0];
+  return pack.har.some((e) => pathOf(e.request.url).split("?")[0] === wanted && e.response.status >= 200 && e.response.status < 400);
+}
+
 /** A finding for a failed run; null for passed, error or timeout (those are not leaks). */
 export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack, ctx?: EvidenceContext): Finding | null {
   if (result.status !== "failed") return null;

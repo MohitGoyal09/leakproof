@@ -9,6 +9,7 @@ import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnF
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
 import { clean } from "./report/terminal.js";
+import { readEvidencePack, requestStillSucceeds } from "./findings.js";
 import { findingFor, runUnit, scan, type ScanOptions } from "./scan.js";
 import type { Config, Finding, FindingOutcome, FixAttempt, Flow, FullReport, KaneResult } from "./types.js";
 
@@ -86,6 +87,7 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
     "- Do not edit leakproof.yml, package.json, lockfiles, tsconfig or *.config.* files, or disable the check.",
     "- Do not put the fix in gitignored files such as .env files.",
     "- Do not delete features the flow uses.",
+    "- Do not remove a failing request; make it succeed.",
     "- Do not commit. Leakproof re-runs Kane and commits only when the check passes.",
   ];
   return redactSecrets(lines.join("\n"), secrets);
@@ -259,10 +261,19 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           }
           const { unit, result } = await runUnit(config, finding.id);
           extraCredits += result.credits ?? 0;
-          if (result.status === "passed") {
+          // A hidden 500 is not fixed by deleting the request: the passing run's own network log must still show it succeeding.
+          const kept = result.status === "passed" && finding.check === "network" && finding.offender
+            ? requestStillSucceeds(readEvidencePack(result.sessionDir ?? "", join(config.configDir, ".leakproof", "evidence", "proof"), finding.id), finding.offender)
+            : true;
+          if (kept === false) {
+            const note = `the request to ${finding.offender} no longer happens or no longer succeeds; removing a failing request is not a fix`;
+            last = { ...result, status: "failed", summary: `Kane's check passed, but ${note}.`, verdict: undefined, reason: undefined };
+            await undo();
+            record({ attempt, files, verdict: "still-failing", note });
+          } else if (result.status === "passed") {
             // Commit only the files that were checked, not what the app wrote while Kane ran.
             await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`, output, files);
-            record({ attempt, files, verdict: "fixed", testUrl: result.testUrl });
+            record({ attempt, files, verdict: "fixed", testUrl: result.testUrl, ...(kept === undefined && finding.check === "network" && finding.offender ? { note: "could not confirm the request still happens (no evidence pack)" } : {}) });
             fixed = true;
           } else {
             last = result;

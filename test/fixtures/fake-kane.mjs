@@ -33,7 +33,9 @@ if (entry.orphan) {
   await new Promise((r) => setTimeout(r, entry.orphan));
 }
 if (entry.sleep) await new Promise((r) => setTimeout(r, entry.sleep));
-process.stdout.write(readFileSync(join(here, "ndjson", `${entry.fixture}.ndjson`)));
+// "sessionDir": point run_end at a test-made session folder, so the run has its own evidence pack.
+const out = readFileSync(join(here, "ndjson", `${entry.fixture}.ndjson`), "utf8");
+process.stdout.write(entry.sessionDir ? out.replace(/"session_dir": "[^"]*"/g, `"session_dir": ${JSON.stringify(entry.sessionDir)}`) : out);
 if (entry.stderr) process.stderr.write(entry.stderr);
 process.stdout.write("some log line that is not json\n");
 process.exit(entry.exit);

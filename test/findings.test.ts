@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertionFor } from "../src/checks.js";
-import { dedupe, deriveEvidence, readEvidencePack, toFinding, type EvidencePack } from "../src/findings.js";
+import { dedupe, deriveEvidence, readEvidencePack, requestStillSucceeds, toFinding, type EvidencePack } from "../src/findings.js";
 import { parseNdjson } from "../src/kane.js";
 import type { Finding, RunUnit } from "../src/types.js";
 import { tempDir } from "./helpers.js";
@@ -140,5 +140,26 @@ describe("dedupe", () => {
 
   it("keeps findings without an offender per flow", () => {
     expect(dedupe([f({ id: "a:storage", check: "storage" }), f({ id: "b:storage", check: "storage", flow: "b" })])).toHaveLength(2);
+  });
+});
+
+describe("requestStillSucceeds", () => {
+  const har = (...entries: [string, number][]) =>
+    ({ har: entries.map(([url, status]) => ({ request: { method: "GET", url }, response: { status }, time: 10 })), console: [] }) as unknown as EvidencePack;
+
+  it("is true when the request still happens and succeeds", () => {
+    expect(requestStillSucceeds(har(["http://localhost:3000/api/recommendations", 200]), "/api/recommendations")).toBe(true);
+  });
+  it("is false when the request still fails", () => {
+    expect(requestStillSucceeds(har(["http://localhost:3000/api/recommendations", 500]), "/api/recommendations")).toBe(false);
+  });
+  it("is false when the request no longer happens", () => {
+    expect(requestStillSucceeds(har(["http://localhost:3000/", 200]), "/api/recommendations")).toBe(false);
+  });
+  it("is undefined when the run left no network log", () => {
+    expect(requestStillSucceeds(har(), "/api/recommendations")).toBeUndefined();
+  });
+  it("matches on the path, so a changed query still counts as the same request", () => {
+    expect(requestStillSucceeds(har(["http://localhost:3000/api/x?id=2", 204]), "/api/x?id=1")).toBe(true);
   });
 });

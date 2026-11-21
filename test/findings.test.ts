@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertionFor } from "../src/checks.js";
-import { dedupe, deriveEvidence, readEvidencePack, requestStillSucceeds, toFinding, type EvidencePack } from "../src/findings.js";
+import { dedupe, deriveEvidence, guardedPaths, readEvidencePack, requestsKept, requestStillSucceeds, toFinding, type EvidencePack } from "../src/findings.js";
 import { parseNdjson } from "../src/kane.js";
 import type { Finding, RunUnit } from "../src/types.js";
 import { tempDir } from "./helpers.js";
@@ -161,5 +161,24 @@ describe("requestStillSucceeds", () => {
   });
   it("matches on the path, so a changed query still counts as the same request", () => {
     expect(requestStillSucceeds(har(["http://localhost:3000/api/x?id=2", 204]), "/api/x?id=1")).toBe(true);
+  });
+});
+
+describe("guardedPaths and requestsKept", () => {
+  const finding = (check: "network" | "vitals" | "console", evidence: string[]) =>
+    ({ id: `f:${check}`, check, flow: "f", assertion: "", evidence, title: "", reason: "", summary: "" }) as unknown as Parameters<typeof guardedPaths>[0];
+
+  it("guards every failing request of a network finding", () => {
+    expect(guardedPaths(finding("network", ["GET /api/a returned 500", "POST /api/b?x=1 returned 502"]))).toEqual(["/api/a", "/api/b?x=1"]);
+  });
+  it("guards every slow request of a vitals finding", () => {
+    expect(guardedPaths(finding("vitals", ["GET /api/hero took 3020 ms (fetch)", "GET / took 1528 ms (document)"]))).toEqual(["/api/hero", "/"]);
+  });
+  it("guards nothing for other checks", () => {
+    expect(guardedPaths(finding("console", ["TypeError: x"]))).toEqual([]);
+  });
+  it("cannot judge a run with no session folder, and never reads one from the working directory", () => {
+    expect(requestsKept(finding("network", ["GET /api/a returned 500"]), undefined, tempDir())).toBeUndefined();
+    expect(requestsKept(finding("network", ["GET /api/a returned 500"]), "", tempDir())).toBeUndefined();
   });
 });

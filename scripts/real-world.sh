@@ -11,6 +11,12 @@ APP=${LEAKPROOF_RWA_DIR:-${TMPDIR:-/tmp}/leakproof-rwa}
 SHIM=${TMPDIR:-/tmp}/leakproof-rwa-shim
 
 case "$MODE" in scan|fix) ;; *) echo "Usage: bash scripts/real-world.sh scan|fix" >&2; exit 2 ;; esac
+
+# Only ever delete a scratch folder this script made: the default one, or one marked by an earlier run.
+if [ -n "${LEAKPROOF_RWA_DIR:-}" ] && [ -n "$(ls -A "$APP" 2>/dev/null)" ] && [ ! -f "$APP/.git/leakproof-scratch" ]; then
+  echo "Refusing to delete $APP: this script did not create it. Point LEAKPROOF_RWA_DIR at a new or empty folder." >&2
+  exit 2
+fi
 for port in 3000 3001; do
   if lsof -ti tcp:$port -sTCP:LISTEN >/dev/null 2>&1; then
     echo "Port $port is busy. Stop whatever runs there first." >&2
@@ -31,6 +37,7 @@ git clone -q "$RWA_REPO" "$APP"
 cd "$APP"
 git checkout -q "$RWA_COMMIT"
 git switch -q -c leakproof-run
+touch .git/leakproof-scratch
 CYPRESS_INSTALL_BINARY=0 yarn install --frozen-lockfile --silent
 cp "$ROOT/docs/real-world/cypress-rwa/leakproof.yml" leakproof.yml
 printf '\n.leakproof/\n.impeccable/\n' >> .gitignore

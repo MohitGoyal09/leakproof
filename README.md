@@ -6,7 +6,7 @@ Your app can look perfect and still leak. A session cookie readable by any scrip
 
 Leakproof walks your app's real user flows in a real browser with [Kane CLI](https://github.com/LambdaTest/kane-cli), checks the things users never see, and hands each leak to Claude Code with Kane's evidence. A fix counts only when Kane re-runs the same check and it passes.
 
-**Results from real runs:** on a real open-source app we did not write ([cypress-realworld-app](docs/real-world/cypress-rwa/)), 3 → 0 leaks; on our demo shop with six planted leaks ([sample run](docs/sample-run/)), 6 → 0. Every fix is proven by a Kane re-run, and every false alarm and half-fix is shown.
+**Results from real runs:** on a real open-source app we did not write ([cypress-realworld-app](docs/real-world/cypress-rwa/)), Kane found 2 leaks, fixing them uncovered a third, and all 3 were fixed (3 → 0); on our demo shop with six planted leaks ([sample run](docs/sample-run/)), 6 → 0. Every fix is proven by a Kane re-run, and every false alarm and half-fix is shown.
 
 ## For judges
 
@@ -150,6 +150,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 ## Safety rules
 
 - `fix` refuses to start on a dirty git tree, and works on a new branch `leakproof/fix-<timestamp>`, one commit per proven fix. Only Leakproof commits, and only the files Kane checked.
+- A hidden 500 or a slow request cannot be "fixed" by deleting the request: after a passing re-run, every request Kane named must still appear in that run's network log, and succeed.
 - If the agent runs git itself (a commit, a branch switch, a hidden-file flag or an edit to `.git/config`), the attempt is rejected and git is put back. Leakproof's own git commands run with hooks and fsmonitor turned off, so files the agent writes under `.git` never run.
 - The agent runs without the `env:` secrets and without Kane or TestMu AI credentials (`KANE_*`, `LT_*`, `LAMBDATEST_*`, `TESTMU_*`) in its environment.
 - The agent may not edit `leakproof.yml`, `package.json`, lockfiles, `tsconfig*.json` or `*.config.*` files. If it does, the attempt is rejected and reverted.
@@ -164,7 +165,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 ## Limits
 
 - The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, `sessionStorage`, hosts named `qa.` or `uat`).
-- Step-scoped checks pass when nothing matching happens in the step. An agent could pass `network` or `console` by removing the request instead of fixing it. Read the fix commits.
+- Step-scoped checks pass when nothing matching happens in the step. For `network` and `vitals`, Leakproof checks the passing re-run's own network log: every request Kane named must still happen and succeed, so deleting it does not count. For `console`, an agent could still pass by removing the code that logs. Read the fix commits.
 - Each fix is re-checked alone. Other checks are re-run in the full re-scan. A leak that comes back gets one more fix pass; there is no third round, and a regression is never reverted automatically.
 - Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
@@ -179,7 +180,7 @@ Each check is one Kane run of about 5–30 credits (about 20 on average) and 50�
 
 ```bash
 npm install
-npm test          # 143 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 151 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

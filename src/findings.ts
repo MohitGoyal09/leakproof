@@ -155,6 +155,31 @@ export function requestStillSucceeds(pack: EvidencePack, path: string): boolean 
   return pack.har.some((e) => pathOf(e.request.url).split("?")[0] === wanted && e.response.status >= 200 && e.response.status < 400);
 }
 
+const GUARDED: Partial<Record<CheckId, RegExp>> = {
+  network: /^[A-Z]+ (\S+) returned \d+/,
+  vitals: /^[A-Z]+ (\S+) took \d+ ms/,
+};
+
+/** Request paths a fix must keep: every failing (network) or slow (vitals) request named in the evidence. */
+export function guardedPaths(f: Finding): string[] {
+  const pattern = GUARDED[f.check];
+  if (!pattern) return [];
+  const paths = f.evidence.flatMap((line) => pattern.exec(line)?.[1] ?? []);
+  return paths.length > 0 ? [...new Set(paths)] : f.offender ? [f.offender] : [];
+}
+
+/**
+ * For a passing re-run of a network or vitals finding: true when every guarded request still happens and succeeds,
+ * false when one is gone or failing, undefined when there is nothing to judge (no guarded paths, no session, no log).
+ */
+export function requestsKept(f: Finding, sessionDir: string | undefined, outDir: string): boolean | undefined {
+  const paths = guardedPaths(f);
+  if (paths.length === 0 || !sessionDir) return undefined;
+  const pack = readEvidencePack(sessionDir, outDir, f.id);
+  if (pack.har.length === 0) return undefined;
+  return paths.every((p) => requestStillSucceeds(pack, p));
+}
+
 /** A finding for a failed run; null for passed, error or timeout (those are not leaks). */
 export function toFinding(unit: RunUnit, result: KaneResult, pack?: EvidencePack, ctx?: EvidenceContext): Finding | null {
   if (result.status !== "failed") return null;

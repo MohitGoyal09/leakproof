@@ -2,7 +2,7 @@
 
 [cypress-io/cypress-realworld-app](https://github.com/cypress-io/cypress-realworld-app) is an MIT-licensed payment app (sign-in, contacts, payments, bank accounts) that Cypress built to teach testing. We did not write it, and nothing in it was planted. Run on 21 Nov 2026 at commit `0729f68` (develop, 7 Oct 2026), the way its README runs it (`yarn dev`), with Kane CLI 0.10.4 and Claude Code (Opus 5.5) as the fixer.
 
-**Result: 3 → 0 leaks, 3 fixes verified by Kane re-runs, 752 credits, 24m 27s.** The first scan alone: 2 leaks, 214 credits, 10 minutes.
+**Result: the first scan found 2 leaks; fixing one uncovered a third, which the re-scan caught. All 3 fixed and verified by Kane re-runs: 3 → 0, 752 credits, 24m 27s.** The first scan alone: 2 leaks, 214 credits, 10 minutes.
 
 Reproduce:
 ```bash

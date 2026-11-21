@@ -171,12 +171,12 @@ describe("fixAll", () => {
   });
 
   /** A Kane session folder whose evidence pack holds a network log with these requests. */
-  const session = (...requests: [string, number][]): string => {
+  const session = (...requests: [string, number, number?][]): string => {
     const dir = tempDir("lp-session-");
     const logs = join(dir, "pack", "run", "logs");
     mkdirSync(logs, { recursive: true });
     mkdirSync(join(dir, "evidence"));
-    const entries = requests.map(([path, status]) => ({ request: { method: "GET", url: `http://127.0.0.1:1${path}` }, response: { status }, time: 10 }));
+    const entries = requests.map(([path, status, time = 10]) => ({ request: { method: "GET", url: `http://127.0.0.1:1${path}` }, response: { status }, time, _resource_type: "fetch" }));
     writeFileSync(join(logs, "0-network.har"), JSON.stringify({ log: { entries } }));
     execFileSync("zip", ["-qr", join(dir, "evidence", "run.evidence"), "run"], { cwd: join(dir, "pack") });
     return dir;
@@ -199,6 +199,38 @@ describe("fixAll", () => {
     expect(attempts[0].note).toMatch(/no longer/);
     expect(claudeCalls(log)[1].prompt).toMatch(/no longer/);
     expect(readFileSync(join(repo, "app.js"), "utf8")).toBe("fixed\n");
+  });
+
+  it("a network fix must keep every failing request, not only the first", async () => {
+    writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "network");
+    useFakeKane({
+      "status of 500": [
+        { fixture: "fail", exit: 1, sessionDir: session(["/api/a", 500], ["/api/b", 500]) },
+        { fixture: "pass", exit: 0, sessionDir: session(["/api/a", 200]) },
+        { fixture: "pass", exit: 0, sessionDir: session(["/api/a", 200], ["/api/b", 200]) },
+        { fixture: "pass", exit: 0 },
+      ],
+    });
+    useFakeClaude([{ write: { path: "app.js", content: "b removed\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const attempts = (await fixAll(config())).outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["still-failing", "fixed"]);
+    expect(attempts[0].note).toMatch(/\/api\/b/);
+  });
+
+  it("a slow-request fix that deletes the slow request is not a fix", async () => {
+    writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "vitals");
+    useFakeKane({
+      "finished in under": [
+        { fixture: "fail", exit: 1, sessionDir: session(["/api/slow", 200, 3000]) },
+        { fixture: "pass", exit: 0, sessionDir: session(["/", 200, 50]) },
+        { fixture: "pass", exit: 0, sessionDir: session(["/api/slow", 200, 40]) },
+        { fixture: "pass", exit: 0 },
+      ],
+    });
+    useFakeClaude([{ write: { path: "app.js", content: "slow call removed\n" } }, { write: { path: "app.js", content: "fast\n" } }]);
+    const attempts = (await fixAll(config())).outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["still-failing", "fixed"]);
+    expect(attempts[0].note).toMatch(/no longer/);
   });
 
   it("a network fix with no evidence pack is accepted with a note", async () => {

@@ -6,6 +6,12 @@ MODE=${1:-scan}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DEMO=${LEAKPROOF_DEMO_DIR:-${TMPDIR:-/tmp}/leakproof-demo-shop}
 
+# Only ever delete a scratch folder this script made: the default one, or one marked by an earlier run.
+if [ -n "${LEAKPROOF_DEMO_DIR:-}" ] && [ -n "$(ls -A "$DEMO" 2>/dev/null)" ] && [ ! -f "$DEMO/.git/leakproof-scratch" ]; then
+  echo "Refusing to delete $DEMO: this script did not create it. Point LEAKPROOF_DEMO_DIR at a new or empty folder." >&2
+  exit 2
+fi
+
 if lsof -ti tcp:3000 -sTCP:LISTEN >/dev/null 2>&1; then
   echo "Port 3000 is busy. Stop whatever runs there first." >&2
   exit 2
@@ -22,6 +28,7 @@ if [ "$MODE" = "control" ]; then
 fi
 printf '.leakproof/\nnode_modules/\n.next/\n*.tsbuildinfo\n.impeccable/\n' > .gitignore
 git init -q -b main
+touch .git/leakproof-scratch
 git add -A
 git -c user.name="Leakproof Demo" -c user.email="demo@leakproof.local" commit -qm "Driftwood Supply"
 

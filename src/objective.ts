@@ -14,7 +14,7 @@ function stepsFor(flow: Flow, check: CheckId): number[] {
 }
 
 export function buildObjective(flow: Flow, check: CheckId, config: Config): string {
-  const ctx: AssertionContext = { appHost: new URL(config.url).host, vitals: config.vitals };
+  const ctx: AssertionContext = { appHostname: new URL(config.url).hostname, vitals: config.vitals };
   const assertion = assertionFor(check, ctx);
   const placed = new Set(stepsFor(flow, check));
   return flow.steps

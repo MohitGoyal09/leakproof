@@ -48,7 +48,7 @@ export async function runUnit(config: Config, unitId: string): Promise<{ unit: R
 export function findingFor(config: Config, unit: RunUnit, result: KaneResult): Finding | null {
   if (result.status !== "failed") return null;
   const pack = result.sessionDir ? readEvidencePack(result.sessionDir, join(outDir(config), "evidence"), unit.id) : undefined;
-  const finding = toFinding(unit, result, pack, { appHost: new URL(config.url).host, slowMs: config.vitals.slowMs });
+  const finding = toFinding(unit, result, pack, { appHostname: new URL(config.url).hostname, slowMs: config.vitals.slowMs });
   if (!finding) return null;
   const secrets = Object.values(config.secrets);
   const r = (t: string) => redactSecrets(t, secrets);

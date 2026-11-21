@@ -9,12 +9,12 @@ import type { Finding, RunUnit } from "../src/types.js";
 import { tempDir } from "./helpers.js";
 
 const pack = (u: string): EvidencePack => JSON.parse(readFileSync(`test/fixtures/evidence/${u}.json`, "utf8"));
-const ctx = { appHost: "localhost:3000", slowMs: 1000 };
+const ctx = { appHostname: "localhost", slowMs: 1000 };
 const unit: RunUnit = {
   id: "checkout:cookies",
   flow: "checkout",
   check: "cookies",
-  objective: `1. Open the page. In this same step, ${assertionFor("cookies", { appHost: "localhost:3000", vitals: { slowMs: 1000 } })}`,
+  objective: `1. Open the page. In this same step, ${assertionFor("cookies", { appHostname: "localhost", vitals: { slowMs: 1000 } })}`,
 };
 const result = (n: string, code: number) => parseNdjson(readFileSync(`test/fixtures/ndjson/${n}.ndjson`, "utf8"), code);
 
@@ -30,6 +30,15 @@ describe("deriveEvidence", () => {
     expect(e.offender).toBe("/api/hero");
     expect(e.evidence).toContain("GET / took 1526 ms (document)");
     expect(e.evidence.some((l) => l.startsWith("GET /api/hero took 300"))).toBe(true);
+  });
+
+  it("a call to the app's own API on another port is not an env leak", () => {
+    const own = { har: [{ request: { method: "GET", url: "http://localhost:3001/users" }, response: { status: 200 }, time: 12 }], console: [] } as unknown as EvidencePack;
+    expect(deriveEvidence("env-leak", own, ctx).evidence).toEqual([]);
+  });
+
+  it("a staging host on the same machine is still a leak", () => {
+    expect(deriveEvidence("env-leak", pack("checkout__env-leak"), ctx).evidence).toEqual(["POST http://staging.localhost:3000/api/collect"]);
   });
 
   it("names the leaked host for env-leak", () => {

@@ -6,7 +6,8 @@ export const STEP_SCOPED: readonly CheckId[] = ["network", "console", "env-leak"
 export const STATE_SCOPED: readonly CheckId[] = ["cookies", "storage"];
 
 export interface AssertionContext {
-  appHost: string;
+  /** The app URL's hostname, no port: the app's own API on another port is not a leak. */
+  appHostname: string;
   vitals: Vitals;
 }
 
@@ -36,7 +37,7 @@ export function assertionFor(check: CheckId, ctx: AssertionContext): string {
     case "storage":
       return "assert that no localStorage key contains 'token', 'secret' or 'api_key'. Then assert that no localStorage value starts with 'sk_live_', 'sk_test_' or 'eyJ'.";
     case "env-leak":
-      return `assert that no network request in this step went to a host, other than ${ctx.appHost}, that contains 'staging', 'localhost', '127.0.0.1', 'dev.' or 'internal'.`;
+      return `assert that no network request in this step went to a host, other than ${ctx.appHostname} on any port, that contains 'staging', 'localhost', '127.0.0.1', 'dev.' or 'internal'.`;
     case "vitals":
       return `assert that every network request of type document, image, fetch or xhr in this step finished in under ${ctx.vitals.slowMs} ms.`;
   }

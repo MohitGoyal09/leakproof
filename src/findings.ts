@@ -24,7 +24,8 @@ export interface EvidencePack {
 }
 
 export interface EvidenceContext {
-  appHost: string;
+  /** The app URL's hostname, no port. */
+  appHostname: string;
   slowMs: number;
 }
 
@@ -79,7 +80,7 @@ export function deriveEvidence(check: CheckId, pack: EvidencePack, ctx: Evidence
     case "env-leak": {
       const leaks = pack.har.filter((e) => {
         const host = hostOf(e.request.url);
-        return host !== "" && host !== ctx.appHost && ENV_HOST.test(host);
+        return host !== "" && host.replace(/:\d+$/, "") !== ctx.appHostname && ENV_HOST.test(host);
       });
       return {
         offender: leaks[0] && hostOf(leaks[0].request.url),

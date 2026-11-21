@@ -5,7 +5,7 @@ import { buildUnits } from "../src/objective.js";
 import type { Config } from "../src/types.js";
 
 const shop = (): Config => loadConfig("examples/shop/leakproof.yml", { SHOP_USER: "d", SHOP_PASS: "p" });
-const ctx = { appHost: "localhost:3000", vitals: { slowMs: 1000 } };
+const ctx = { appHostname: "localhost", vitals: { slowMs: 1000 } };
 const count = (hay: string, needle: string) => hay.split(needle).length - 1;
 
 describe("buildUnits", () => {
@@ -59,8 +59,9 @@ describe("buildUnits", () => {
 });
 
 describe("assertionFor", () => {
-  it("env-leak excludes the app host", () => {
-    expect(assertionFor("env-leak", ctx)).toContain("other than localhost:3000");
+  it("env-leak excludes the app's own hostname on any port", () => {
+    expect(assertionFor("env-leak", ctx)).toContain("other than localhost on any port");
+    expect(assertionFor("env-leak", ctx)).not.toContain("localhost:3000,");
   });
 
   it("vitals uses the slow threshold", () => {

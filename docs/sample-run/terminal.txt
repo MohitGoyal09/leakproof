@@ -2,41 +2,42 @@
 leakproof  scanning http://localhost:3000  ·  6 checks across 3 flows
 
   LEAK   home          Hidden server errors  GET /api/recommendations returned 500
-  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1503 ms (fetch)
-  LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
-  LEAK   checkout      Secrets in storage    Checkout session leaves a sensitive-named key in local…
+  LEAK   home          Slow requests         GET /?_rsc=NBYwLSnedbI3BPhy took 1506 ms (fetch)
+  LEAK   checkout      Secrets in storage    Login leaves prohibited sensitive key in localStorage
   LEAK   checkout      Environment leaks     POST http://staging.localhost:3000/api/collect
-  LEAK   checkout      Cookie flags          Authentication cookie lacks HttpOnly protection
+  LEAK   checkout      Cookie flags          Authentication cookie missing HttpOnly protection
+  LEAK   add-to-cart   Console errors        Cannot read properties of undefined (reading 'track')
 
   6 leaks found. Handing each one to Claude Code, then asking Kane to prove the fix.
 
-  Exhibit A  Hidden server errors · home  Recommendations API returns 500 on home page
+  Exhibit A  Hidden server errors · home  Recommendations API returns 500 during home-page load
     attempt 1  edited app/api/recommendations/route.ts  → Kane re-run passed  FIXED
 
   Exhibit B  Slow requests · home  Slow requests: /api/hero
     attempt 1  edited app/api/hero/route.ts, app/page.…  → Kane re-run passed  FIXED
 
-  Exhibit C  Console errors · add-to-cart  Console errors: Cannot read properties of undefined (reading 'track')
+  Exhibit C  Console errors · add-to-cart  Add-to-cart action throws undefined track exception
     attempt 1  edited app/Storefront.tsx  → Kane re-run passed  FIXED
 
-  Exhibit D  Cookie flags · checkout  Authentication cookie lacks HttpOnly protection
-    attempt 1  edited app/api/login/route.ts  → Kane re-run passed  FIXED
+  Exhibit D  Cookie flags · checkout  Authentication cookie missing HttpOnly protection
+    attempt 1  edited app/api/login/route.ts  → Kane re-run still failed  STILL LEAKING
+    attempt 2  edited app/api/login/route.ts  → Kane re-run passed  FIXED
 
-  Exhibit E  Secrets in storage · checkout  Checkout session leaves a sensitive-named key in local storage
-    attempt 1  edited app/api/login/route.ts, app/logi…  → Kane re-run passed  FIXED
+  Exhibit E  Secrets in storage · checkout  Login leaves prohibited sensitive key in localStorage
+    attempt 1  edited app/login/page.tsx  → Kane re-run passed  FIXED
 
-  Exhibit F  Environment leaks · checkout  Sign-in sends telemetry to a staging host
+  Exhibit F  Environment leaks · checkout  Sign-in sends telemetry to staging host
     attempt 1  edited app/checkout/page.tsx  → Kane re-run passed  FIXED
 
   Re-scanning every flow to catch regressions
 
-  PASS   home          Hidden server errors
-  PASS   checkout      Cookie flags
-  PASS   home          Slow requests
-  PASS   checkout      Secrets in storage
-  PASS   checkout      Environment leaks
-  PASS   add-to-cart   Console errors
+  PASS   home          Hidden server errors  
+  PASS   home          Slow requests         
+  PASS   checkout      Secrets in storage    
+  PASS   checkout      Cookie flags          
+  PASS   checkout      Environment leaks     
+  PASS   add-to-cart   Console errors        
 
-  6 → 0 leaks  ·  6 fixes verified by Kane  ·  317 credits  ·  17m 31s
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  332 credits  ·  18m 38s
   Report  .leakproof/report.html
 

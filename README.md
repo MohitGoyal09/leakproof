@@ -16,7 +16,7 @@ Leakproof walks your app's real user flows in a real browser with [Kane CLI](htt
 | Kane caught or proved something | Real app: [docs/real-world/cypress-rwa](docs/real-world/cypress-rwa/) (2 real React errors, a missing Secure flag). Demo: [docs/sample-run](docs/sample-run/) (6 → 0) |
 | The agent and Kane talk | The prompts the agent got, with Kane's evidence: [real app](docs/real-world/cypress-rwa/prompts/), [demo](docs/sample-run/prompts/). Kane's re-run verdict goes back on a fail ([How Kane and the agent talk](#how-the-loop-works)) |
 | Verified | Each report links the failing Kane run and the Kane run that proves the fix: [real app report](docs/real-world/cypress-rwa/report.html), [demo report](docs/sample-run/report.html) |
-| Closed loop | One commit per proven fix ([commits](docs/real-world/cypress-rwa/commits.txt)); a leak hidden behind another was caught by the re-scan and fixed in the same run ([terminal.txt](docs/real-world/cypress-rwa/terminal.txt)) |
+| Closed loop | Kane rejected one of the agent's fixes and its verdict went back to the agent, whose second attempt passed ([the retry prompt](docs/sample-run/prompts/checkout__cookies.2.txt), [terminal.txt](docs/sample-run/terminal.txt)). One commit per proven fix ([commits](docs/real-world/cypress-rwa/commits.txt)); a leak hidden behind another was caught by the re-scan and fixed in the same run ([terminal.txt](docs/real-world/cypress-rwa/terminal.txt)) |
 | The agent cannot cheat | Guard tests in [test/fixer.test.ts](test/fixer.test.ts): git commits, gitignored files, build config, deleting the failing request, secrets in its environment |
 | Honest limits | [Limits](#limits), the [control runs](docs/sample-run/control.txt) with one Kane false alarm, and what Leakproof [missed on the real app](docs/real-world/cypress-rwa/README.md#what-leakproof-missed-here) |
 | Check without credits | Open the two `report.html` files, read `terminal.txt` and `fixes.patch` in each folder, run `npm test` |
@@ -51,7 +51,7 @@ Then `leakproof fix` on the same shop, a real run with Claude Code (Opus 5.5):
   PASS   add-to-cart   Console errors
   PASS   checkout      Environment leaks
 
-  6 → 0 leaks  ·  6 fixes verified by Kane  ·  317 credits  ·  17m 31s
+  6 → 0 leaks  ·  6 fixes verified by Kane  ·  332 credits  ·  18m 38s
 ```
 
 The full output, the report with the Kane run that proves each fix, the prompts the agent got, its patch and a review of each fix are in [docs/sample-run](docs/sample-run/).
@@ -174,7 +174,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 
 ## Cost
 
-Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 100–170 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 317 credits and took 18 minutes. The total counts every Kane run.
+Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 100–170 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 332 credits and took 19 minutes. The total counts every Kane run.
 
 ## Development
 

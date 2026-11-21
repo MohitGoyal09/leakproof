@@ -24,7 +24,7 @@ index bf8eed1..e2c6b7b 100644
    return new Response(svg, { headers: { "content-type": "image/svg+xml", "cache-control": "no-store" } });
  }
 diff --git a/app/api/login/route.ts b/app/api/login/route.ts
-index f0cf6fb..320ac9c 100644
+index f0cf6fb..facf64f 100644
 --- a/app/api/login/route.ts
 +++ b/app/api/login/route.ts
 @@ -14,6 +14,6 @@ export async function POST(req: Request) {
@@ -32,9 +32,8 @@ index f0cf6fb..320ac9c 100644
    }
    const token = fakeJwt(username);
 -  (await cookies()).set("session", token, { httpOnly: false, sameSite: "lax", path: "/" });
--  return Response.json({ token });
 +  (await cookies()).set("session", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
-+  return Response.json({ ok: true });
+   return Response.json({ token });
  }
 diff --git a/app/api/recommendations/route.ts b/app/api/recommendations/route.ts
 index 7b0cd17..fb637a5 100644
@@ -49,7 +48,7 @@ index 7b0cd17..fb637a5 100644
 +  return Response.json(PRODUCTS.slice(0, 2));
  }
 diff --git a/app/checkout/page.tsx b/app/checkout/page.tsx
-index 9a9e4f6..f518733 100644
+index 9a9e4f6..06c00ca 100644
 --- a/app/checkout/page.tsx
 +++ b/app/checkout/page.tsx
 @@ -4,7 +4,7 @@ import { useEffect } from "react";
@@ -57,38 +56,37 @@ index 9a9e4f6..f518733 100644
  export default function Checkout() {
    useEffect(() => {
 -    fetch("http://staging.localhost:3000/api/collect", { method: "POST", mode: "no-cors" }).catch(() => {});
-+    fetch("/api/collect",{ method: "POST", mode: "no-cors" }).catch(() => {});
++    fetch("/api/collect", { method: "POST" }).catch(() => {});
    }, []);
  
    return (
 diff --git a/app/login/page.tsx b/app/login/page.tsx
-index ad376ab..f3c1756 100644
+index ad376ab..b885189 100644
 --- a/app/login/page.tsx
 +++ b/app/login/page.tsx
-@@ -23,9 +23,6 @@ export default function Login() {
+@@ -23,9 +23,7 @@ export default function Login() {
        setError("That username and password don't match. Check them and try again.");
        return;
      }
 -    const { token } = await res.json();
 -    localStorage.setItem("auth_token", token);
 -    localStorage.setItem("stripe_key", "sk_live_demo123");
++    // Session lives in the httpOnly "session" cookie set by /api/login; keep secrets out of localStorage.
      router.push("/checkout");
    }
  
 diff --git a/app/page.tsx b/app/page.tsx
-index 14f4c7a..8c4a4ac 100644
+index 14f4c7a..edebce8 100644
 --- a/app/page.tsx
 +++ b/app/page.tsx
-@@ -2,11 +2,6 @@ import { Storefront } from "./Storefront";
+@@ -2,9 +2,7 @@ import { Storefront } from "./Storefront";
  
  export const dynamic = "force-dynamic";
  
 -async function loadInventory(): Promise<void> {
 -  await new Promise((r) => setTimeout(r, 1500));
 -}
--
--export default async function Home() {
--  await loadInventory();
-+export default function Home() {
-   return <Storefront />;
- }
++async function loadInventory(): Promise<void> {}
+ 
+ export default async function Home() {
+   await loadInventory();

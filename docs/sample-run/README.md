@@ -2,7 +2,7 @@
 
 Real runs on 21 Nov 2026 with Kane CLI 0.10.4, on the demo shop with no hint comments in its code. The fixer was Claude Code (Opus 5.5), run headless with no subagents.
 
-**Fix run: 6 → 0 leaks, 6 fixes verified by Kane re-runs, 317 credits, 17m 31s.** All 317 credits are Kane runs: the first scan, 6 proving re-runs and the final re-scan.
+**Fix run: 6 → 0 leaks, 6 fixes verified by Kane re-runs, 332 credits, 18m 38s.** Kane rejected one fix: the agent's first cookie fix still left the cookie without `Secure`, Kane's re-run failed, the edit was reverted, and Kane's verdict went back to the agent, whose second attempt passed. All 332 credits are Kane runs: the first scan, 7 re-runs and the final re-scan.
 
 | File | What it is |
 |---|---|
@@ -17,14 +17,14 @@ Real runs on 21 Nov 2026 with Kane CLI 0.10.4, on the demo shop with no hint com
 
 ## Reviewing the fixes
 
-Every fix passed on the first attempt, so this run shows no retry. The retry path (Kane's new verdict goes back to the agent) is covered by the tests in `test/fixer.test.ts`.
+Five fixes passed on the first attempt. The cookie fix needed two: see [prompts/checkout__cookies.2.txt](prompts/checkout__cookies.2.txt), which starts with Kane's verdict on the first attempt.
 
 | Leak | What the agent changed | Root cause removed? |
 |---|---|---|
 | Hidden server error | The recommendations route returns two products instead of a 500 | Yes for the demo, which has no recommendation service. In a real app this hides a missing service; the agent's comment says so. |
 | Slow requests | Removed the planted 3 s and 1.5 s delays | Yes. The delays were the leak. |
 | Console error | `analytics?.track(...)` | Partly. The shop loads no analytics script, so the call no longer throws, but events are not tracked either. |
-| Cookie flags | Session cookie set with `httpOnly: true, secure: true`; the login response no longer returns the token | Yes |
+| Cookie flags | Session cookie set with `httpOnly: true, secure: true`, on the second attempt (Kane rejected the first) | Yes for the cookie. The login response still returns the token in its JSON body; the storage fix below stops the page from keeping it. |
 | Secrets in storage | The login page no longer writes the token and the live key to `localStorage` | Yes |
 | Environment leak | Telemetry posts to the same origin instead of the staging host | Yes |
 

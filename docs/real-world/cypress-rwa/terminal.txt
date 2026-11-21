@@ -1,0 +1,49 @@
+
+leakproof  scanning http://localhost:3000  ·  8 checks across 3 flows
+
+  LEAK   sign-in       Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  PASS   sign-in       Secrets in storage
+  LEAK   sign-in       Cookie flags          Authentication cookie lacks the Secure flag
+  LEAK   pay           Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  PASS   accounts      Hidden server errors
+  LEAK   accounts      Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  PASS   pay           Environment leaks
+  PASS   pay           Hidden server errors
+
+  2 leaks found. Handing each one to Claude Code, then asking Kane to prove the fix.
+
+  Exhibit A  Cookie flags · sign-in  Authentication cookie lacks the Secure flag
+    attempt 1  edited backend/app.ts  → Kane re-run passed  FIXED
+
+  Exhibit B  Console errors · sign-in  SVG logo uses invalid React DOM attribute names
+    attempt 1  edited src/components/SvgCypressLogo.tsx  → Kane re-run passed  FIXED
+
+  Re-scanning every flow to catch regressions
+
+  PASS   sign-in       Cookie flags
+  PASS   sign-in       Secrets in storage
+  PASS   sign-in       Console errors
+  LEAK   pay           Console errors        Warning: Function components cannot be given refs. Att…
+  PASS   pay           Environment leaks
+  PASS   accounts      Hidden server errors
+  PASS   accounts      Console errors
+  PASS   pay           Hidden server errors
+  The re-scan found 1 leak that is not settled (missed before, or broken by a later fix). Fixing it too.
+
+  Exhibit C  Console errors · pay  Console errors: Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s Check the render method of `MuiOutlinedInputInput`. at NumberFormatCustom (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:36:10) at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at InputBase (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:9437:16) at OutlinedInput (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:25222:16) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at FormControl (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:18017:16) at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at TextField (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:36454:16) at Field (http://localhost:3000/node_modules/.vite/deps/formik.js?v=bb658a71:3328:22) at form at http://localhost:3000/node_modules/.vite/deps/formik.js?v=bb658a71:3382:21 at Formik (http://localhost:3000/node_modules/.vite/deps/formik.js?v=bb658a71:3187:18) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:1416:17) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at Paper (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:3215:16) at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at TransactionCreateStepTwo (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:56:37) at TransactionCreateContainer (http://localhost:3000/src/containers/TransactionCreateContainer.tsx:13:39) at Route (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=bb658a71:702:27) at PrivateRoute (http://localhost:3000/src/components/PrivateRoute.tsx:5:25) at Switch (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=bb658a71:839:27) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:19269:21) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:19269:21) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=bb658a71:1416:17) at main at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at MainLayout (http://localhost:3000/src/components/MainLayout.tsx:46:23) at PrivateRoutesContainer (http://localhost:3000/src/containers/PrivateRoutesContainer.tsx:16:35) at div at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:1592:53 at App (http://localhost:3000/src/containers/App.tsx:29:22) at DefaultPropsProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:303:33) at RtlProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=bb658a71:343:8) at ThemeProvider$2 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=bb658a71:307:10) at ThemeProvider$1 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=bb658a71:384:10) at ThemeProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=bb658a71:1303:15) at StyledEngineProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=bb658a71:2423:10) at Router (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=bb658a71:459:32)
+    attempt 1  edited src/components/TransactionCreate…  → Kane re-run passed  FIXED
+
+  Re-scanning every flow to catch regressions
+
+  PASS   sign-in       Cookie flags
+  PASS   sign-in       Secrets in storage
+  PASS   sign-in       Console errors
+  PASS   pay           Console errors
+  PASS   accounts      Hidden server errors
+  PASS   pay           Hidden server errors
+  PASS   accounts      Console errors
+  PASS   pay           Environment leaks
+
+  3 → 0 leaks  ·  3 fixes verified by Kane  ·  752 credits  ·  24m 27s
+  Report  .leakproof/report.html
+

@@ -1,0 +1,112 @@
+diff --git a/backend/app.ts b/backend/app.ts
+index 7731fb8..c87d42f 100644
+--- a/backend/app.ts
++++ b/backend/app.ts
+@@ -55,12 +55,22 @@ app.use(logger("dev"));
+ app.use(bodyParser.urlencoded({ extended: false }));
+ app.use(bodyParser.json());
+ 
++// Browsers treat http://localhost as a secure context and accept Secure cookies from it,
++// so let express-session issue the Secure session cookie there too (it otherwise only does over TLS).
++app.use((req, _res, next) => {
++  if (req.hostname === "localhost" || req.hostname === "127.0.0.1") {
++    Object.defineProperty(req, "secure", { value: true });
++  }
++  next();
++});
++
+ app.use(
+   session({
+     secret: "session secret",
+     resave: false,
+     saveUninitialized: false,
+     unset: "destroy",
++    cookie: { httpOnly: true, secure: true },
+   })
+ );
+ app.use(passport.initialize());
+diff --git a/src/components/SvgCypressLogo.tsx b/src/components/SvgCypressLogo.tsx
+index 10c1cf3..6339cd9 100644
+--- a/src/components/SvgCypressLogo.tsx
++++ b/src/components/SvgCypressLogo.tsx
+@@ -60,8 +60,8 @@ function SvgCypressLogo(props: any) {
+           y2="17.9723"
+           gradientUnits="userSpaceOnUse"
+         >
+-          <stop offset="0.0939" stop-color="#58D09E" />
+-          <stop offset="0.9883" stop-color="#58D09E" stop-opacity="0" />
++          <stop offset="0.0939" stopColor="#58D09E" />
++          <stop offset="0.9883" stopColor="#58D09E" stopOpacity="0" />
+         </linearGradient>
+         <linearGradient
+           id="paint1_linear_1375_10683"
+@@ -71,8 +71,8 @@ function SvgCypressLogo(props: any) {
+           y2="44.2092"
+           gradientUnits="userSpaceOnUse"
+         >
+-          <stop offset="0.0774" stop-color="#58D09E" />
+-          <stop offset="0.7617" stop-color="#1B1E2E" />
++          <stop offset="0.0774" stopColor="#58D09E" />
++          <stop offset="0.7617" stopColor="#1B1E2E" />
+         </linearGradient>
+       </defs>
+     </svg>
+diff --git a/src/components/TransactionCreateStepTwo.tsx b/src/components/TransactionCreateStepTwo.tsx
+index 65e44c5..71e7091 100644
+--- a/src/components/TransactionCreateStepTwo.tsx
++++ b/src/components/TransactionCreateStepTwo.tsx
+@@ -39,31 +39,32 @@ const validationSchema = object({
+ });
+ 
+ interface NumberFormatCustomProps {
+-  inputRef: (el: HTMLInputElement) => void;
+   onChange: (event: { target: { value: string } }) => void;
+ }
+ 
+-function NumberFormatCustom(props: NumberFormatCustomProps) {
+-  const { inputRef, onChange, ...other } = props;
+-
+-  return (
+-    <NumberFormat
+-      {...other}
+-      getInputRef={inputRef}
+-      onValueChange={(values) => {
+-        onChange({
+-          target: {
+-            ...other,
+-            value: values.value,
+-          },
+-        });
+-      }}
+-      thousandSeparator
+-      isNumericString
+-      prefix="$"
+-    />
+-  );
+-}
++const NumberFormatCustom = React.forwardRef<HTMLInputElement, NumberFormatCustomProps>(
++  function NumberFormatCustom(props, ref) {
++    const { onChange, ...other } = props;
++
++    return (
++      <NumberFormat
++        {...other}
++        getInputRef={ref}
++        onValueChange={(values) => {
++          onChange({
++            target: {
++              ...other,
++              value: values.value,
++            },
++          });
++        }}
++        thousandSeparator
++        isNumericString
++        prefix="$"
++      />
++    );
++  }
++);
+ 
+ export interface TransactionCreateStepTwoProps {
+   receiver: User;

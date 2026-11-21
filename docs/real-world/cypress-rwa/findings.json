@@ -1,0 +1,50 @@
+{
+  "startedAt": "2026-11-21T10:08:36.204Z",
+  "url": "http://localhost:3000",
+  "units": 8,
+  "results": [
+    {
+      "unit": "sign-in:cookies",
+      "status": "passed",
+      "credits": 19.430916999999997
+    },
+    {
+      "unit": "sign-in:storage",
+      "status": "passed",
+      "credits": 15.6923
+    },
+    {
+      "unit": "sign-in:console",
+      "status": "passed",
+      "credits": 13.210752499999998
+    },
+    {
+      "unit": "pay:network",
+      "status": "passed",
+      "credits": 64.2913215
+    },
+    {
+      "unit": "pay:console",
+      "status": "passed",
+      "credits": 25.33015
+    },
+    {
+      "unit": "pay:env-leak",
+      "status": "passed",
+      "credits": 72.53242600000002
+    },
+    {
+      "unit": "accounts:network",
+      "status": "passed",
+      "credits": 45.79143700000001
+    },
+    {
+      "unit": "accounts:console",
+      "status": "passed",
+      "credits": 28.768651999999996
+    }
+  ],
+  "findings": [],
+  "errors": [],
+  "credits": 285
+}

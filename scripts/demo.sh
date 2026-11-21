@@ -6,7 +6,7 @@ MODE=${1:-scan}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DEMO=${LEAKPROOF_DEMO_DIR:-${TMPDIR:-/tmp}/leakproof-demo-shop}
 
-if lsof -ti tcp:3000 >/dev/null 2>&1; then
+if lsof -ti tcp:3000 -sTCP:LISTEN >/dev/null 2>&1; then
   echo "Port 3000 is busy. Stop whatever runs there first." >&2
   exit 2
 fi

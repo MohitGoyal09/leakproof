@@ -1,0 +1,25 @@
+# Leakproof config for cypress-io/cypress-realworld-app (a real, unplanted app).
+# Written once from the app's own UI before the first scan; not tuned afterwards.
+# vitals is left out: the app is run the way its README says (`yarn dev`, a Vite dev server),
+# so request timings would measure the dev server, not the app.
+url: http://localhost:3000
+start: yarn dev
+env: [RWA_USER, RWA_PASS]
+flows:
+  - name: sign-in
+    checks: [cookies, storage, console]
+    steps:
+      - Open /signin and sign in with username {{RWA_USER}} and password {{RWA_PASS}}
+      - Wait for the transaction feed on the home page to appear
+  - name: pay
+    checks: [network, console, env-leak]
+    steps:
+      - Open /signin and sign in with username {{RWA_USER}} and password {{RWA_PASS}}
+      - Click the "New" button, choose the contact "Lia Rosenbaum", enter 5 as the amount and "Leakproof test" as the note, then click "Pay"
+      - Wait for the confirmation that the payment was sent
+  - name: accounts
+    checks: [network, console]
+    steps:
+      - Open /signin and sign in with username {{RWA_USER}} and password {{RWA_PASS}}
+      - Open /notifications and wait for the list of notifications to appear
+      - Open /bankaccounts and wait for the list of bank accounts to appear

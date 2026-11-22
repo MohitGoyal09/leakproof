@@ -4,7 +4,7 @@ import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState, untrackedFiles } from "./git.js";
+import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState, headFiles } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
@@ -221,13 +221,15 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
    * Throws on anything it cannot read as text (a symlink, a folder or nested repository, a huge file): the caller rejects the edit.
    */
   const fullDiff = async (files: string[]) => {
-    const changed = new Set(files);
-    const fresh = (await untrackedFiles(root)).filter((f) => changed.has(f));
+    const inHead = await headFiles(root);
+    const fresh = files.filter((f) => !inHead.has(f));
     const texts = fresh.map((f) => {
       const stat = lstatSync(join(root, f));
       if (!stat.isFile()) throw new Error(`${f} is a symlink, a folder or a nested repository`);
       if (stat.size > MAX_CHECKED_FILE) throw new Error(`${f} is over ${MAX_CHECKED_FILE / 1e6} MB`);
-      return readFileSync(join(root, f), "utf8").split("\n").map((l) => `+${l}`).join("\n");
+      const lines = readFileSync(join(root, f), "utf8").split("\n");
+      // Its own section header, so a header-only section before it (a mode change) cannot swallow its lines.
+      return [`diff --git a/${f} b/${f}`, `@@ -0,0 +1,${lines.length} @@`, ...lines.map((l) => `+${l}`)].join("\n");
     });
     return [await diffText(root, files.filter((f) => !fresh.includes(f))), ...texts].join("\n");
   };

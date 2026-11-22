@@ -217,7 +217,11 @@ const SILENCERS: [RegExp, string][] = [
   [/\bsuppressHydrationWarning\b/g, "adds suppressHydrationWarning"],
 ];
 const CONSOLE_ERROR = /\bconsole\s*\.\s*error\s*\(/g;
-const COMMENT = /^\s*(\/\/|\/\*|\*)/;
+
+/** A diff line without complete block comments, so an empty block comment between "console" and ".error" cannot hide the call. */
+const uncomment = (line: string) => line.replace(/\/\*[^\n]{0,500}?\*\//g, " ");
+/** Looks like a comment line. Used only to not count an added, commented-out call: skipping more lines there only rejects more. */
+const looksLikeComment = (line: string) => /^\s*(\/\/|\/\*|\*)/.test(line) && !line.includes("*/");
 
 /**
  * Why a console fix hides the error instead of fixing it, read from its diff; undefined when it does not.
@@ -230,13 +234,12 @@ export function silencesConsole(diff: string): string | undefined {
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) header = true;
     else if (line.startsWith("@@")) header = false;
-    else if (!header && !COMMENT.test(line.slice(1))) {
-      if (line.startsWith("+")) added.push(line.slice(1));
-      else if (line.startsWith("-")) removed.push(line.slice(1));
-    }
+    else if (!header && line.startsWith("+")) added.push(uncomment(line.slice(1)));
+    else if (!header && line.startsWith("-")) removed.push(uncomment(line.slice(1)));
   }
   const count = (side: string[], re: RegExp) => side.reduce((n, l) => n + (l.match(re)?.length ?? 0), 0);
-  if (count(removed, CONSOLE_ERROR) > count(added, CONSOLE_ERROR)) return "it removes a console.error call";
+  // Fail closed both ways: every removed line counts, and an added call counts only on a line of code.
+  if (count(removed, CONSOLE_ERROR) > count(added.filter((l) => !looksLikeComment(l)), CONSOLE_ERROR)) return "it removes a console.error call";
   const hit = SILENCERS.find(([re]) => count(added, re) > count(removed, re));
   return hit ? `it ${hit[1]}` : undefined;
 }

@@ -269,6 +269,14 @@ describe("silencesConsole", () => {
     expect(silencesConsole(diff('-  console.error("x");', '+  // console.error("x");'))).toMatch(/removes a console\.error call/);
   });
 
+  it("does not skip code that sits next to a block comment", () => {
+    expect(silencesConsole(diff("+/* quiet */ console.error = noop;"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff("+*/ console.error = noop; /*"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff("+  * 2; console.error = noop;"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff("+// console.error = noop;"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff('-console.error("x");', '+/* console.error("x"); */'))).toMatch(/removes a console\.error call/);
+  });
+
   it("accepts error handlers on an element and a console field on another object", () => {
     for (const line of ["img.onerror = () => (img.src = fallback);", 'el.addEventListener("error", retry);', "foo.console.x = 1;"])
       expect(silencesConsole(diff(`+${line}`)), line).toBeUndefined();

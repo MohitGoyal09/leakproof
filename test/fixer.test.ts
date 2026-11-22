@@ -280,6 +280,18 @@ describe("fixAll", () => {
     expect(existsSync(join(repo, "quiet.js"))).toBe(false);
   });
 
+  it("reads a new file in a new folder, and new files after a mode-only change", async () => {
+    const quiet = { content: "console.error = () => {};\n" };
+    for (const step of [{ write: { path: "lib/deep/quiet.js", ...quiet } }, { write: { path: "quiet.js", ...quiet }, git: [["update-index", "--chmod=+x", "app.js"]] }]) {
+      writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");
+      useFakeKane({ "level 'error'": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+      useFakeClaude([step, { write: { path: "app.js", content: "fixed\n" } }]);
+      const attempts = (await fixAll(config())).outcomes![0].attempts;
+      expect(attempts.map((a) => a.verdict), JSON.stringify(step)).toEqual(["rejected", "fixed"]);
+      expect(attempts[0].note).toMatch(/replaces console/);
+    }
+  });
+
   it("rejects a console fix it cannot read: a new symlink or a nested repository", async () => {
     for (const step of [{ symlink: { target: "/etc/hosts", path: "quiet.js" } }, { write: { path: "sub/quiet.js", content: "console.error = () => {};\n" }, git: [["init", "-q", "sub"]] }]) {
       writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");

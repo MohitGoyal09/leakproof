@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { diffText, isAncestor, parsePorcelain, revertAll, untrackedFiles } from "../src/git.js";
+import { diffText, isAncestor, parsePorcelain, revertAll, headFiles } from "../src/git.js";
 import { tempDir } from "./helpers.js";
 
 describe("parsePorcelain", () => {
@@ -72,12 +72,11 @@ describe("diffText and isAncestor", () => {
     expect(await diffText(dir, ["a.js"])).toContain("+two");
   });
 
-  it("lists new files, including a nested repository, without naming them on the command line", async () => {
+  it("lists the files in HEAD, not new or staged ones", async () => {
     const { dir, git } = repo();
     writeFileSync(join(dir, "b.js"), "new\n");
-    git("init", "-q", "sub");
-    writeFileSync(join(dir, "sub", "q.js"), "x\n");
-    expect((await untrackedFiles(dir)).sort()).toEqual(["b.js", "sub/"]);
+    git("add", "b.js");
+    expect([...(await headFiles(dir))]).toEqual(["a.js"]);
   });
 
   it("says whether a commit is in the current branch's history", async () => {

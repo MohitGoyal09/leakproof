@@ -20,9 +20,9 @@ export async function diffText(root: string, files: readonly string[]): Promise<
   return git(root, ["--literal-pathspecs", "diff", "--text", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
 }
 
-/** Files git does not track yet and does not ignore. A nested repository shows as its folder ("sub/"). */
-export async function untrackedFiles(root: string): Promise<string[]> {
-  return (await git(root, ["ls-files", "-z", "--others", "--exclude-standard", "--directory", "--no-empty-directory"], true)).split("\0").filter(Boolean);
+/** Every file path in the HEAD commit. A changed path not in it is new, whatever folder it is in. */
+export async function headFiles(root: string): Promise<Set<string>> {
+  return new Set((await git(root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"], true)).split("\0").filter(Boolean));
 }
 
 /** True when `commit` is in the history of HEAD. False for an unknown commit or a folder outside git. */

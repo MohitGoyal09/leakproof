@@ -98,6 +98,8 @@ How Kane and the agent talk:
 - **Kane is non-deterministic, and fixes can collide.** A check can pass in one run and fail in the next, and a later fix can break an earlier one. If the full re-scan finds a leak the first scan missed, or a fixed leak that came back, that leak goes through the same fix loop once more, and Kane scans every flow again. A fix counts only if the last scan no longer finds the leak.
 - Every prompt the agent got is saved in `.leakproof/prompts/`, and the report links the Kane run that proves each fix.
 
+**Lessons memory: it learns from Kane across runs.** After each `fix` run, Leakproof saves what Kane taught it to `.leakproof/lessons.json`: every edit Kane rejected (the diff and Kane's reason) and every fix Kane proved (its commit, kept only when the final scan agrees). The next run gives the agent the lessons for the same check, the same leak first, so it does not repeat a fix Kane already turned down. A later `scan` that finds a leak Kane proved fixed before says so, with the commit that fixed it. Delete the file to start fresh.
+
 ## Quick start
 
 You need Node 20+, [Kane CLI](https://www.testmuai.com/support/docs/kane-cli-introduction/) and, for `fix`, the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI.
@@ -165,6 +167,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 - If Kane or the agent fails hard mid-fix (for example a logged-out CLI), or you press Ctrl-C, the unproven edit is reverted.
 - A failed attempt is reverted before the next one. After 3 attempts the leak is reported as still leaking.
 - Credentials go to Kane through a temporary variables file (mode 0600, deleted after the run, also on Ctrl-C). Their values are masked (as typed, JSON-escaped and URL-encoded) in prompts, logs, the terminal and the report. Screenshots in the evidence pack can still show what the page displayed.
+- Lessons are fenced as untrusted data in the prompt, like Kane's evidence, with secret values masked. Leakproof reads `lessons.json` before the agent runs and writes it back from memory at the end, so an agent cannot plant lessons for the next run.
 - Text from the scanned page is escaped in the HTML report and stripped of control characters in the terminal.
 - `leakproof.yml` is code: `start` runs in a shell, and `env` names the variables sent to Kane. Read a cloned project's config before you run it.
 - Without a `start` command, Leakproof cannot restart your app after an edit. Use a dev server with hot reload, or set `start`.
@@ -177,6 +180,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 - Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
 - Only Claude Code is supported as the agent.
+- Lessons stay on your machine in `.leakproof/` and are not committed. A rejected edit's diff covers changed tracked files only, not new files, and is cut at 1,500 characters. Leakproof keeps the newest 50 lessons.
 - The evidence so far is two apps: the demo shop with six planted leaks, and one real open-source app ([cypress-realworld-app](docs/real-world/cypress-rwa/)). Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A leak that every scan misses is not reported, and the storage check is narrow: on the real app it missed the user's auth state in `localStorage`.
 
 ## Cost
@@ -187,7 +191,7 @@ Each check is one Kane run of about 5â€“30 credits (about 20 on average) and 50â
 
 ```bash
 npm install
-npm test          # 152 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 165 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

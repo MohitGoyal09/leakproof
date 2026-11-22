@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../src/cli.js";
+import { saveLessons } from "../src/lessons.js";
 import { kaneCalls, tempDir, useFakeKane } from "./helpers.js";
 
 let server: Server;
@@ -31,6 +32,13 @@ describe("cli main", () => {
     const code = await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
     expect(code).toBe(1);
     expect(out.join("\n")).toContain("LEAK");
+  });
+
+  it("scan says when a leak Kane proved fixed in an earlier run is back", async () => {
+    saveLessons(dir, [{ id: "home:network", check: "network", flow: "home", outcome: "passed", files: ["app/api/route.ts"], commit: "abc1234def5678", at: "2026-11-21T10:00:00.000Z" }]);
+    useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
+    await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    expect(out.join("\n")).toMatch(/came back.*home network.*abc1234/);
   });
 
   it("scan exits 0 when clean", async () => {

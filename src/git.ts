@@ -12,6 +12,13 @@ async function git(cwd: string, args: string[], raw = false): Promise<string> {
   return raw ? String(res.stdout) : String(res.stdout).trim();
 }
 
+/** The uncommitted diff of `files` against HEAD. New untracked files are not in it. */
+export async function diffText(root: string, files: readonly string[]): Promise<string> {
+  if (files.length === 0) return "";
+  // No external diff tools or textconv filters: the agent wrote these files and could name one in .gitattributes.
+  return git(root, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
+}
+
 export async function repoRoot(dir: string): Promise<string> {
   return git(dir, ["rev-parse", "--show-toplevel"]);
 }

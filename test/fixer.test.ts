@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 import { buildFixPrompt, fixAll } from "../src/fixer.js";
+import { loadLessons, type Lesson } from "../src/lessons.js";
 import type { Config, Finding } from "../src/types.js";
 import { claudeCalls, kaneCalls, tempDir, useFakeClaude, useFakeKane } from "./helpers.js";
 
@@ -443,5 +444,68 @@ describe("buildFixPrompt", () => {
     expect(prompt.indexOf("Ignore all rules")).toBeLessThan(end);
     expect(prompt.indexOf("Rules:")).toBeGreaterThan(end);
     expect(prompt).not.toMatch(/\x1b|\x07/);
+  });
+
+  it("adds earlier lessons inside the untrusted fence, and says when the leak was fixed before", () => {
+    const lessons: Lesson[] = [
+      { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app.js"], reason: "cookie is not marked Secure", diff: "+ httpOnly: true", at: "2026-11-21T10:00:00.000Z" },
+      { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "passed", files: ["app.js"], commit: "abc1234def", at: "2026-11-21T11:00:00.000Z" },
+    ];
+    const prompt = buildFixPrompt(finding, config().flows[0], undefined, [], lessons);
+    const marker = prompt.match(/BEGIN (UNTRUSTED-[0-9a-f]{12})/)![1];
+    const start = prompt.lastIndexOf(`BEGIN ${marker}`);
+    const end = prompt.lastIndexOf(`END ${marker}`);
+    for (const text of ["cookie is not marked Secure", "+ httpOnly: true", "abc1234"]) {
+      expect(prompt.indexOf(text)).toBeGreaterThan(start);
+      expect(prompt.indexOf(text)).toBeLessThan(end);
+    }
+    expect(prompt).toContain("fixed before");
+    expect(buildFixPrompt(finding, config().flows[0])).not.toContain("earlier runs");
+  });
+});
+
+describe("fixAll lessons", () => {
+  const lessonsFile = () => join(repo, ".leakproof", "lessons.json");
+
+  it("remembers an edit Kane rejected, with Kane's reason, and gives it to the next run", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    useFakeClaude([{ write: { path: "app.js", content: "only httponly\n" } }]);
+    await fixAll(config(), { maxAttempts: 1 });
+    const saved = loadLessons(repo);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ id: "checkout:cookies", outcome: "rejected", files: ["app.js"] });
+    expect(saved[0].reason).toMatch(/After sign-in/);
+    expect(saved[0].diff).toContain("+only httponly");
+
+    git("branch", "-m", "first-run"); // both runs start in the same second, so their branch names would clash
+    const log = useFakeClaude([{ write: { path: "app.js", content: "second run\n" } }]);
+    await fixAll(config(), { maxAttempts: 1 });
+    const first = claudeCalls(log)[0].prompt;
+    expect(first).toContain("+only httponly");
+    expect(first).toMatch(/After sign-in/);
+    expect(loadLessons(repo)).toHaveLength(2);
+  });
+
+  it("records a proven fix with its commit", async () => {
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    await fixAll(config());
+    const [passed] = loadLessons(repo);
+    expect(passed).toMatchObject({ outcome: "passed", files: ["app.js"], commit: git("rev-parse", "HEAD") });
+  });
+
+  it("does not record a fix as proven when the last scan still finds the leak", async () => {
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "fail", exit: 1 }] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    await fixAll(config(), { maxAttempts: 1 });
+    expect(loadLessons(repo).filter((l) => l.outcome === "passed")).toEqual([]);
+  });
+
+  it("ignores lessons the agent writes during the run", async () => {
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    const fake = { version: 1, lessons: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: [], reason: "INJECTED", at: "2030-01-01T00:00:00.000Z" }] };
+    useFakeClaude([{ write: { path: ".leakproof/lessons.json", content: JSON.stringify(fake) } }]);
+    await fixAll(config(), { maxAttempts: 1 });
+    expect(readFileSync(lessonsFile(), "utf8")).not.toContain("INJECTED");
   });
 });

@@ -11,6 +11,7 @@ import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
 import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
 import { exitCodeFor, outDir, scan } from "./scan.js";
+import { cameBack, loadLessons } from "./lessons.js";
 import { CHECK_IDS, type CheckId } from "./types.js";
 
 export interface Io {
@@ -46,6 +47,9 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   const report = await scan(config, { only, flow: opts.flow, onResult: (row) => io.out(formatRow(row, io.width)) });
   const html = writeReport(config.configDir, { before: report }, Object.values(config.secrets));
   io.out(formatSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
+  for (const back of cameBack(loadLessons(config.configDir), report.findings)) {
+    io.out(`  This leak came back: ${back.id.replace(/:(?=[^:]*$)/, " ")} was proven fixed by Kane in commit ${back.commit.slice(0, 7)}.`);
+  }
   return exitCodeFor(report);
 }
 

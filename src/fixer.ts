@@ -4,12 +4,13 @@ import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState } from "./git.js";
+import { changedFiles, commitAll, createBranch, diffText, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
 import { clean } from "./report/terminal.js";
 import { guardedPaths, requestsKept } from "./findings.js";
+import { lessonsFor, loadLessons, saveLessons, type Lesson } from "./lessons.js";
 import { findingFor, runUnit, scan, type ScanOptions } from "./scan.js";
 import type { Config, Finding, FindingOutcome, FixAttempt, Flow, FullReport, KaneResult } from "./types.js";
 
@@ -59,7 +60,7 @@ function canRun(bin: string): boolean {
 }
 
 /** The prompt the coding agent gets for one finding. Contains evidence and placeholders, never secret values. */
-export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, secrets: readonly string[] = []): string {
+export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, secrets: readonly string[] = [], lessons: readonly Lesson[] = []): string {
   const check = CHECKS[finding.check];
   // A fresh marker per prompt: page text cannot guess it, so it cannot fake the end of the untrusted block.
   const marker = `UNTRUSTED-${randomBytes(6).toString("hex")}`;
@@ -69,6 +70,7 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
   untrusted.push(`Kane's diagnosis: ${finding.reason}`);
   if (finding.suggestion) untrusted.push(`Kane's suggestion: ${finding.suggestion}`);
   if (last) untrusted.push(`Your last attempt did not fix it. Kane re-ran the check and it still failed: ${last.verdict?.rootCause ?? last.reason ?? last.summary}`);
+  if (lessons.length > 0) untrusted.push("Kane's verdicts on fix attempts in earlier runs on this repository:", ...lessons.flatMap((l) => lessonLines(l, finding)));
   const lines = [
     "Leakproof found a leak with Kane CLI, running this app's real user flow in a real browser. Fix it in this repository.",
     "",
@@ -91,6 +93,21 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
     "- Do not commit. Leakproof re-runs Kane and commits only when the check passes.",
   ];
   return redactSecrets(lines.join("\n"), secrets);
+}
+
+/** One lesson as prompt lines: a rejected edit with Kane's reason, or a fix that passed Kane's re-run. */
+function lessonLines(l: Lesson, finding: Finding): string[] {
+  const date = l.at.slice(0, 10);
+  const files = l.files.join(", ") || "no files";
+  if (l.outcome === "passed") {
+    const commit = (l.commit ?? "").slice(0, 7);
+    return l.id === finding.id
+      ? [`  - This leak was fixed before (${date}) in commit ${commit}, which changed ${files}. Something undid that fix; see git show ${commit}.`]
+      : [`  - A fix for the same check in the "${l.flow}" flow passed Kane's re-run (${date}): commit ${commit}, which changed ${files}.`];
+  }
+  const head = `  - Rejected (${l.flow} flow, ${date}): an edit to ${files}. Kane re-ran the check and it still failed: ${l.reason ?? "no reason given"}`;
+  // A "| " prefix keeps the diff's own "-" and "+" lines from reading as list items once indentation is gone.
+  return l.diff ? [head, "The rejected edit (git diff):", ...l.diff.trimEnd().split("\n").map((line) => `| ${line}`)] : [head];
 }
 
 /** The agent process now running, so an interrupt can kill it before undoing its edits. */
@@ -165,6 +182,14 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
   };
   const secrets = Object.values(config.secrets);
   const promptDir = join(config.configDir, ".leakproof", "prompts");
+  // Read once, before any agent runs, and written back from memory at the end: an agent cannot plant lessons.
+  const known = loadLessons(config.configDir);
+  const learned: Lesson[] = [];
+  let confirmed = new Set<string>();
+  const learn = (finding: Finding, outcome: Lesson["outcome"], files: string[], extra: Partial<Lesson> = {}) => {
+    const scrub = (text?: string) => (text === undefined ? undefined : redactSecrets(text, secrets));
+    learned.push({ id: finding.id, check: finding.check, flow: finding.flow, outcome, files, at: new Date().toISOString(), ...extra, reason: scrub(extra.reason), diff: scrub(extra.diff) });
+  };
   let app: AppHandle = await startApp(config);
   try {
     await createBranch(root, fixBranchName());
@@ -218,7 +243,7 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
         };
         undoInFlight = undo;
         try {
-          const prompt = buildFixPrompt(finding, flow, last, secrets);
+          const prompt = buildFixPrompt(finding, flow, last, secrets, lessonsFor([...known, ...learned], finding));
           writeOwnFile(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
           const agent = await runAgent(root, prompt, opts.agentTimeoutMs, Object.keys(config.secrets));
           // Unhide anything the agent (or a hook) hid through info/exclude before any check looks at the tree.
@@ -268,15 +293,18 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           if (kept === false) {
             const note = `a request Kane named (${mustKeep.join(", ")}) no longer happens or no longer succeeds; removing a request is not a fix`;
             last = { ...result, status: "failed", summary: `Kane's check passed, but ${note}.`, verdict: undefined, reason: undefined };
+            learn(finding, "rejected", files, { reason: note, diff: await diffText(root, files) });
             await undo();
             record({ attempt, files, verdict: "still-failing", note });
           } else if (result.status === "passed") {
             // Commit only the files that were checked, not what the app wrote while Kane ran.
             await commitAll(root, `fix: leakproof ${finding.check} in ${finding.flow}`, output, files);
+            learn(finding, "passed", files, { commit: (await gitState(root)).head });
             record({ attempt, files, verdict: "fixed", testUrl: result.testUrl, ...(kept === undefined && mustKeep.length > 0 ? { note: "could not confirm the requests still happen (no evidence pack)" } : {}) });
             fixed = true;
           } else {
             last = result;
+            if (result.status === "failed") learn(finding, "rejected", files, { reason: result.verdict?.rootCause ?? result.reason ?? result.summary, diff: await diffText(root, files) });
             await undo();
             record({ attempt, files, verdict: "still-failing", note: result.status === "failed" ? undefined : `Kane ${result.status}` });
             const refreshed = findingFor(config, unit, result);
@@ -327,10 +355,17 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
     }
     // A fix counts only if the last scan no longer finds the leak.
     const final = outcomes.map((o) => (o.fixed && after.findings.some((f) => f.id === o.finding.id) ? { ...o, fixed: false } : o));
+    confirmed = new Set(final.filter((o) => o.fixed).map((o) => o.finding.id));
     const report: FullReport = { before, outcomes: final, after, extraCredits: Math.round(extraCredits * 10) / 10 };
     writeReport(config.configDir, report, secrets);
     return report;
   } finally {
     await app.stop();
+    // A rejected edit is a lesson even if the run stopped early; a passed fix only once the last scan agreed.
+    try {
+      saveLessons(config.configDir, [...known, ...learned.filter((l) => l.outcome === "rejected" || confirmed.has(l.id))]);
+    } catch (error: unknown) {
+      process.stderr.write(`leakproof: could not save lessons: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
   }
 }

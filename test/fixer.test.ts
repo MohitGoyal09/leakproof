@@ -477,7 +477,8 @@ describe("fixAll lessons", () => {
   it("remembers an edit Kane rejected, with Kane's reason, and gives it to the next run", async () => {
     useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
     useFakeClaude([{ write: { path: "app.js", content: "only httponly\n" } }]);
-    await fixAll(config(), { maxAttempts: 1 });
+    const run1 = await fixAll(config(), { maxAttempts: 1 });
+    expect(run1.lessons).toMatchObject({ used: 0, learned: [{ outcome: "rejected" }] });
     const saved = loadLessons(repo);
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({ id: "checkout:cookies", outcome: "rejected", files: ["app.js"] });
@@ -486,7 +487,8 @@ describe("fixAll lessons", () => {
 
     git("branch", "-m", "first-run"); // both runs start in the same second, so their branch names would clash
     const log = useFakeClaude([{ write: { path: "app.js", content: "second run\n" } }]);
-    await fixAll(config(), { maxAttempts: 1 });
+    const run2 = await fixAll(config(), { maxAttempts: 1 });
+    expect(run2.lessons?.used).toBe(1);
     const first = claudeCalls(log)[0].prompt;
     expect(first).toContain("+only httponly");
     expect(first).toMatch(/After sign-in/);

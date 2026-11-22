@@ -1,3 +1,5 @@
+import type { Lesson } from "./lessons.js";
+
 export type CheckId = "cookies" | "storage" | "network" | "console" | "env-leak" | "vitals";
 
 export const CHECK_IDS: readonly CheckId[] = ["cookies", "storage", "network", "console", "env-leak", "vitals"];
@@ -112,4 +114,6 @@ export interface FullReport {
   after?: ScanReport;
   /** Kane credits spent outside the first scan and the final scan: fix re-runs and any extra re-scan. */
   extraCredits?: number;
+  /** Lessons from earlier runs that went into this run's prompts, and the lessons this run saved. */
+  lessons?: { used: number; learned: Lesson[] };
 }

@@ -59,5 +59,12 @@ describe("terminal", () => {
     const out = strip(formatFixSummary(report, 60_000, "r.html"));
     expect(out).toContain("1 → 0 leaks");
     expect(out).toContain("235 credits");
+    expect(out).not.toContain("Lessons");
+  });
+
+  it("fix summary says how many lessons it used and learned", () => {
+    const scan = (findings: Finding[]) => ({ findings, errors: [], credits: 0, units: 6 }) as unknown as ScanReport;
+    const report: FullReport = { before: scan([]), outcomes: [], after: scan([]), lessons: { used: 2, learned: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app/api/login/route.ts"], reason: "cookie <b>not</b> marked Secure", at: "2026-11-22T10:00:00.000Z" }] } };
+    expect(strip(formatFixSummary(report, 1000, "r.html"))).toMatch(/Lessons\s+used 2 from earlier runs · learned 1 new/);
   });
 });

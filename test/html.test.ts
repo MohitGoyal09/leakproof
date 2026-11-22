@@ -16,6 +16,21 @@ const scanReport = (findings: Finding[]): ScanReport => ({
   results: [], findings, errors: [], credits: 118.4,
 });
 
+describe("renderHtml lessons", () => {
+  it("lists what Kane taught this run, escaped, and how many earlier lessons were used", () => {
+    const html = renderHtml({ before: scanReport([]), after: scanReport([]), outcomes: [], lessons: { used: 2, learned: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app/api/login/route.ts"], reason: "cookie <b>not</b> marked Secure", at: "2026-11-22T10:00:00.000Z" }, { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "passed", files: ["app/api/login/route.ts"], commit: "abc1234def5678", at: "2026-11-22T10:05:00.000Z" }] } }, "/r");
+    expect(html).toContain("What Kane taught Leakproof");
+    expect(html).toContain("2 lessons from earlier runs");
+    expect(html).toContain("cookie &lt;b&gt;not&lt;/b&gt; marked Secure");
+    expect(html).toContain("REJECTED");
+    expect(html).toContain("abc1234");
+  });
+
+  it("has no lessons section when the run used and learned none", () => {
+    expect(renderHtml({ before: scanReport([]) }, "/r")).not.toContain("What Kane taught");
+  });
+});
+
 describe("renderHtml", () => {
   it("shows before and after counts", () => {
     const html = renderHtml({ before: scanReport(Array.from({ length: 6 }, (_, i) => finding({ id: `f:${i}` }))), after: scanReport([]) }, "/r");

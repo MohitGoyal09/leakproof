@@ -89,5 +89,6 @@ export function formatFixSummary(report: FullReport, elapsedMs: number, reportPa
   const fixed = report.outcomes?.filter((o) => o.fixed).length ?? 0;
   const credits = Math.round(report.before.credits + (report.after?.credits ?? 0) + (report.extraCredits ?? 0));
   const head = pc.bold(after === 0 ? pc.green(`${before} → ${after} leaks`) : pc.red(`${before} → ${after} leaks`));
-  return `\n  ${[head, `${fixed} fix${fixed === 1 ? "" : "es"} verified by Kane`, pc.dim(`${credits} credits`), pc.dim(duration(elapsedMs))].join(pc.dim("  ·  "))}\n  ${pc.dim("Report")}  ${reportPath}\n`;
+  const lessons = report.lessons ? `\n  ${pc.dim("Lessons")}  used ${report.lessons.used} from earlier runs · learned ${report.lessons.learned.length} new` : "";
+  return `\n  ${[head, `${fixed} fix${fixed === 1 ? "" : "es"} verified by Kane`, pc.dim(`${credits} credits`), pc.dim(duration(elapsedMs))].join(pc.dim("  ·  "))}${lessons}\n  ${pc.dim("Report")}  ${reportPath}\n`;
 }

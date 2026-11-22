@@ -98,7 +98,7 @@ How Kane and the agent talk:
 - **Kane is non-deterministic, and fixes can collide.** A check can pass in one run and fail in the next, and a later fix can break an earlier one. If the full re-scan finds a leak the first scan missed, or a fixed leak that came back, that leak goes through the same fix loop once more, and Kane scans every flow again. A fix counts only if the last scan no longer finds the leak.
 - Every prompt the agent got is saved in `.leakproof/prompts/`, and the report links the Kane run that proves each fix.
 
-**Lessons memory: it learns from Kane across runs.** After each `fix` run, Leakproof saves what Kane taught it to `.leakproof/lessons.json`: every edit Kane rejected (the diff and Kane's reason) and every fix Kane proved (its commit, kept only when the final scan agrees). The next run gives the agent the lessons for the same check, the same leak first, so it does not repeat a fix Kane already turned down. A later `scan` that finds a leak Kane proved fixed before says so, with the commit that fixed it. Delete the file to start fresh.
+**Lessons memory: it learns from Kane across runs.** After each `fix` run, Leakproof saves what Kane taught it to `.leakproof/lessons.json`: every edit Kane rejected (the diff and Kane's reason) and every fix Kane proved (its commit, kept only when the final scan agrees). The next run gives the agent the lessons for the same check, the same leak first, so it does not repeat a fix Kane already turned down. The `fix` summary says how many lessons it used and learned, and the report lists them under "What Kane taught Leakproof". A later `scan` that finds a leak Kane proved fixed before says so, with the commit that fixed it. Delete the file to start fresh.
 
 ## Quick start
 
@@ -191,7 +191,7 @@ Each check is one Kane run of about 5â€“30 credits (about 20 on average) and 50â
 
 ```bash
 npm install
-npm test          # 173 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 176 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

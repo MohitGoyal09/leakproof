@@ -3,6 +3,7 @@ import { CHECKS } from "../checks.js";
 import { redactSecrets as redact } from "../redact.js";
 import type { Finding, FindingOutcome, FixAttempt, FullReport } from "../types.js";
 import { writeOwnFile } from "../guard.js";
+import type { Lesson } from "../lessons.js";
 
 
 function makeEsc(secrets: readonly string[]) {
@@ -87,6 +88,13 @@ figure img{width:100%;height:auto;border:1px solid var(--rule);border-radius:4px
 figcaption{font-size:13px;color:var(--ink-2)}
 .clean{padding:40px 0;font-size:18px}
 .errors{padding:32px 0;border-bottom:1px solid var(--rule)}
+.lessons{padding:32px 0;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.lessons h2{margin:0;font-size:22px}
+.lessons p{margin:0;color:var(--ink-2);max-width:65ch}
+.lessons ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+.lessons li{display:grid;grid-template-columns:7.5em 1fr;gap:4px 12px;align-items:baseline}
+.lessons .stamp{text-align:center;width:100%;box-sizing:border-box}
+.lessons .files{grid-column:2;font:13px/1.5 var(--mono);color:var(--ink-2)}
 .errors ul{margin:8px 0 0;padding-left:18px}
 footer{padding-top:24px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
 code{font:13px var(--mono);color:var(--ink)}
@@ -155,6 +163,17 @@ ${run ? `<p class="links"><a href="${esc(run)}" rel="noopener noreferrer">Failin
   };
 
   const errors = [...before.errors, ...(after?.errors ?? [])];
+  const lessons = report.lessons && (report.lessons.used > 0 || report.lessons.learned.length > 0) ? report.lessons : undefined;
+  const lessonItem = (l: Lesson): string => {
+    const stamp = l.outcome === "passed" ? `<span class="stamp sealed">PROVEN</span>` : `<span class="stamp leak">REJECTED</span>`;
+    const what = l.outcome === "passed" ? `Kane's re-run passed. Commit ${esc((l.commit ?? "").slice(0, 7))}.` : `Kane's re-run still failed: ${esc(l.reason ?? "no reason given")}`;
+    return `<li>${stamp}<span><strong>${esc(CHECKS[l.check].label)}</strong> · ${esc(l.flow)} flow. ${what}</span><span class="files">${l.files.map(esc).join("<br>")}</span></li>`;
+  };
+  const lessonsSection = lessons
+    ? `<section class="lessons" aria-labelledby="lessons-h"><h2 id="lessons-h">What Kane taught Leakproof</h2>
+<p>This run used ${lessons.used} lesson${lessons.used === 1 ? "" : "s"} from earlier runs and saved ${lessons.learned.length} new one${lessons.learned.length === 1 ? "" : "s"} to <code>.leakproof/lessons.json</code>. The next run gives them to the agent, so it does not repeat an edit Kane turned down.</p>
+${lessons.learned.length > 0 ? `<ol>${lessons.learned.map(lessonItem).join("")}</ol>` : ""}</section>`
+    : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -184,6 +203,7 @@ ${after ? `<div class="arrow" aria-hidden="true">→</div><div class="count seal
 <p class="verdict-line">${esc(verdictLine)}</p>
 </section>
 ${items.length === 0 ? `<p class="clean">No leaks found. Every check passed in a real browser.</p>` : items.map(exhibit).join("\n")}
+${lessonsSection}
 ${errors.length > 0 ? `<section class="errors"><span class="stamp warn">ERRORS</span><ul>${errors.map((e) => `<li><strong>${esc(e.unit)}</strong>: ${esc(e.message)}</li>`).join("")}</ul></section>` : ""}
 <footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>leakproof scan</code></span></footer>
 </main>

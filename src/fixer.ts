@@ -197,6 +197,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
   const learned: Lesson[] = [];
   let confirmed = new Set<string>();
   const merged = new Set<string>();
+  /** Lessons from earlier runs that reached a prompt. */
+  const used = new Set<Lesson>();
   for (const commit of new Set(known.flatMap((l) => (l.outcome === "passed" && l.commit ? [l.commit] : [])))) {
     if (await isAncestor(root, commit)) merged.add(commit);
   }
@@ -274,7 +276,9 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
         };
         undoInFlight = undo;
         try {
-          const prompt = buildFixPrompt(finding, flow, last, secrets, lessonsFor([...known, ...learned], finding), merged);
+          const picked = lessonsFor([...known, ...learned], finding);
+          for (const l of picked) if (known.includes(l)) used.add(l);
+          const prompt = buildFixPrompt(finding, flow, last, secrets, picked, merged);
           writeOwnFile(join(promptDir, `${finding.id.replace(/:/g, "__")}.${attempt}.txt`), prompt);
           const agent = await runAgent(root, prompt, opts.agentTimeoutMs, Object.keys(config.secrets));
           // Unhide anything the agent (or a hook) hid through info/exclude before any check looks at the tree.
@@ -387,7 +391,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
     // A fix counts only if the last scan no longer finds the leak.
     const final = outcomes.map((o) => (o.fixed && after.findings.some((f) => f.id === o.finding.id) ? { ...o, fixed: false } : o));
     confirmed = new Set(final.filter((o) => o.fixed).map((o) => o.finding.id));
-    const report: FullReport = { before, outcomes: final, after, extraCredits: Math.round(extraCredits * 10) / 10 };
+    const lessons = { used: used.size, learned: learned.filter((l) => l.outcome === "rejected" || confirmed.has(l.id)) };
+    const report: FullReport = { before, outcomes: final, after, extraCredits: Math.round(extraCredits * 10) / 10, lessons };
     writeReport(config.configDir, report, secrets);
     return report;
   } finally {

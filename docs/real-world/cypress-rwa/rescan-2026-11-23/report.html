@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leakproof report · localhost:3000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{--paper:#fbfbf9;--ink:#16181d;--ink-2:#5a5f6b;--rule:#dcdcd6;--leak:#b42318;--leak-wash:#fdecea;--sealed:#146c43;--sealed-wash:#e5f3eb;--warn:#8a5a00;--warn-wash:#fbf1dc;
+--sans:"Archivo",ui-sans-serif,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+*{box-sizing:border-box}
+html{background:var(--paper)}
+body{margin:0;color:var(--ink);font:400 15px/1.55 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+::selection{background:var(--ink);color:var(--paper)}
+a{color:inherit;text-decoration-thickness:1px;text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.sheet{max-width:1040px;margin:0 auto;padding:48px 32px 64px}
+.cert{display:grid;grid-template-columns:1fr auto;gap:8px 32px;align-items:end;padding-bottom:20px;border-bottom:2px solid var(--ink)}
+.mark{font-weight:800;font-stretch:112%;letter-spacing:-.02em;font-size:18px}
+h1{grid-column:1;margin:0;font-size:40px;line-height:1.05;font-weight:800;font-stretch:112%;letter-spacing:-.03em}
+.specimen{grid-column:2;grid-row:1/3;margin:0;display:grid;grid-template-columns:auto auto;gap:4px 20px;font-size:13px}
+.specimen dt{color:var(--ink-2)}
+.specimen dd{margin:0;font-weight:600;text-align:right}
+.verdict{display:flex;align-items:flex-end;gap:40px;padding:40px 0 32px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.count{display:grid;gap:4px}
+.count .num{font-size:120px;line-height:.85;font-weight:800;font-stretch:112%;letter-spacing:-.04em}
+.count.leak .num{color:var(--leak)}
+.count.sealed .num{color:var(--sealed)}
+.count .label{font-size:15px;color:var(--ink-2)}
+.arrow{font-size:56px;line-height:1;color:var(--ink-2);padding-bottom:28px}
+.verdict-line{margin:0 0 6px auto;max-width:28ch;font-size:18px;font-weight:600;text-wrap:balance}
+.exhibit{display:grid;gap:12px;padding:32px 0;border-bottom:1px solid var(--rule)}
+.ex-head{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:13px}
+.ex-ref{font-weight:800;font-stretch:112%;letter-spacing:.02em}
+.ex-check{color:var(--ink-2)}
+.stamps{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.stamp{display:inline-block;padding:3px 8px;border:1.5px solid currentColor;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.08em}
+.stamp.leak{color:var(--leak);background:var(--leak-wash)}
+.stamp.sealed{color:var(--sealed);background:var(--sealed-wash)}
+.stamp.warn{color:var(--warn);background:var(--warn-wash)}
+.exhibit h2{margin:0;font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-.01em;text-wrap:balance;max-width:40ch}
+.ex-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
+.ex-body.no-shot{grid-template-columns:minmax(0,1fr)}
+.why{margin:0;color:var(--ink-2);max-width:65ch}
+h3{margin:20px 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.readings{margin:0;padding:12px 14px;background:#fff;border:1px solid var(--rule);border-radius:4px;font:13px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word}
+.diagnosis{margin:0;max-width:65ch}
+.attempts{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.attempts li{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:baseline}
+.attempts .n{font-weight:700}
+.attempts .files{grid-column:2;font:13px/1.5 var(--mono);color:var(--ink-2)}
+.links{margin:16px 0 0;font-size:14px}
+figure{margin:0;display:grid;gap:6px}
+figure img{width:100%;height:auto;border:1px solid var(--rule);border-radius:4px;display:block}
+figcaption{font-size:13px;color:var(--ink-2)}
+.clean{padding:40px 0;font-size:18px}
+.errors{padding:32px 0;border-bottom:1px solid var(--rule)}
+.lessons{padding:32px 0;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.lessons h2{margin:0;font-size:22px}
+.lessons p{margin:0;color:var(--ink-2);max-width:65ch}
+.lessons ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+.lessons li{display:grid;grid-template-columns:7.5em 1fr;gap:4px 12px;align-items:baseline}
+.lessons .stamp{text-align:center;width:100%;box-sizing:border-box}
+.lessons .files{grid-column:2;font:13px/1.5 var(--mono);color:var(--ink-2)}
+.errors ul{margin:8px 0 0;padding-left:18px}
+footer{padding-top:24px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+code{font:13px var(--mono);color:var(--ink)}
+@media (max-width:760px){.sheet{padding:28px 16px 48px}.cert{grid-template-columns:1fr}.specimen{grid-column:1;grid-row:auto}.specimen dd{text-align:left}.count .num{font-size:88px}.ex-body{grid-template-columns:1fr}.verdict-line{margin-left:0}}
+</style>
+</head>
+<body>
+<main class="sheet">
+<header class="cert">
+<div class="mark">Leakproof</div>
+<h1>Leak report</h1>
+<dl class="specimen">
+<dt>App</dt><dd>http://localhost:3000</dd>
+<dt>Scanned</dt><dd>Sun, 22 Nov 2026 19:04:46 UTC</dd>
+<dt>Checks</dt><dd>8</dd>
+<dt>Kane credits</dt><dd>377</dd>
+</dl>
+</header>
+<section class="verdict" aria-label="Verdict">
+<div class="count leak"><span class="num" data-count="before">3</span><span class="label">leaks found</span></div>
+
+<p class="verdict-line">Run leakproof fix to have an agent fix these and Kane prove each fix.</p>
+</section>
+<article class="exhibit" id="exhibit-a">
+<div class="ex-head"><span class="ex-ref">Exhibit A</span><span class="ex-check">Cookie flags · sign-in flow</span><span class="stamps"><span class="stamp leak">LEAK</span></span></div>
+<h2>Cookie flags check failed in the sign-in flow</h2>
+<div class="ex-body"><div>
+<p class="why">A session cookie without HttpOnly or Secure can be read by injected scripts or sent over plain HTTP.</p>
+<h3>What Kane saw</h3><pre class="readings">Kane&#39;s check failed: at least one cookie is set. Then assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">Kane&#39;s check failed: at least one cookie is set. Then assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.</p>
+
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M82AE0AHWJABDETB08P95ASC/dashboard/share/US_5IPXSN7BQ0V88FV6NKB7O721RVHAXPD60UQXKZ4EIKFKJCFXTHTB8AHZRJLZZXIN?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Failing Kane run in Test Manager</a></p>
+</div><figure><a href="evidence/sign-in__cookies.jpg"><img src="evidence/sign-in__cookies.jpg" alt="Screenshot of the failing step in the sign-in flow"></a><figcaption>Failing step, captured by Kane. Click to open full size.</figcaption></figure></div>
+</article>
+<article class="exhibit" id="exhibit-b">
+<div class="ex-head"><span class="ex-ref">Exhibit B</span><span class="ex-check">Secrets in storage · sign-in flow</span><span class="stamps"><span class="stamp leak">LEAK</span></span></div>
+<h2>Authentication data stored under prohibited localStorage key</h2>
+<div class="ex-body"><div>
+<p class="why">Tokens, keys and auth state in localStorage or sessionStorage are readable by any script on the page.</p>
+<h3>What Kane saw</h3><pre class="readings">The signed-in page stored browser data under a key containing a restricted word such as token, secret, auth, jwt, api_key, or password.</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">The signed-in page stored browser data under a key containing a restricted word such as token, secret, auth, jwt, api_key, or password.</p>
+
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M82ADZ9MMFQ89BDJBBK32FGP/dashboard/share/US_CPQPMFDN7IJPLK11OYGH5LUCFRHXRGWXXKA4I5YVXQTMBB7FU9X66DKL1WHA19EB?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Failing Kane run in Test Manager</a></p>
+</div><figure><a href="evidence/sign-in__storage.jpg"><img src="evidence/sign-in__storage.jpg" alt="Screenshot of the failing step in the sign-in flow"></a><figcaption>Failing step, captured by Kane. Click to open full size.</figcaption></figure></div>
+</article>
+<article class="exhibit" id="exhibit-c">
+<div class="ex-head"><span class="ex-ref">Exhibit C</span><span class="ex-check">Console errors · sign-in flow</span><span class="stamps"><span class="stamp leak">LEAK</span></span></div>
+<h2>Console errors: Warning: Invalid DOM property `%s`. Did you mean `%s`?%s stop-color stopC…</h2>
+<div class="ex-body"><div>
+<p class="why">A user action throws an error the UI hides.</p>
+<h3>What Kane saw</h3><pre class="readings">Warning: Invalid DOM property `%s`. Did you mean `%s`?%s stop-color stopColor 
+    at stop
+    at linearGradient
+    at defs
+    at svg
+    at SvgCypressLogo
+    at a
+    at p
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Typography (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:5353:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at Footer
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Box (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1108:17)
+    at main
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at SignInForm (http://localhost:3000/src/components/SignInForm.tsx:41:23)
+    at Route (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:702:27)
+    at Switch (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:839:27)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at App (http://localhost:3000/src/containers/App.tsx:29:22)
+    at DefaultPropsProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:303:33)
+    at RtlProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:343:8)
+    at ThemeProvider$2 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:307:10)
+    at ThemeProvider$1 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:384:10)
+    at ThemeProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:1303:15)
+    at StyledEngineProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:2423:10)
+    at Router (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:459:32)
+Warning: Invalid DOM property `%s`. Did you mean `%s`?%s stop-opacity stopOpacity 
+    at stop
+    at linearGradient
+    at defs
+    at svg
+    at SvgCypressLogo
+    at a
+    at p
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Typography (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:5353:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at Footer
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Box (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1108:17)
+    at main
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at SignInForm (http://localhost:3000/src/components/SignInForm.tsx:41:23)
+    at Route (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:702:27)
+    at Switch (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:839:27)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at App (http://localhost:3000/src/containers/App.tsx:29:22)
+    at DefaultPropsProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:303:33)
+    at RtlProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:343:8)
+    at ThemeProvider$2 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:307:10)
+    at ThemeProvider$1 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:384:10)
+    at ThemeProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:1303:15)
+    at StyledEngineProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:2423:10)
+    at Router (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:459:32)
+Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `MuiOutlinedInputInput`. 
+    at NumberFormatCustom (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:36:10)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at InputBase (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:9437:16)
+    at OutlinedInput (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:25222:16)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at FormControl (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:18017:16)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at TextField (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:36454:16)
+    at Field (http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3328:22)
+    at form
+    at http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3382:21
+    at Formik (http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3187:18)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Paper (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:3215:16)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at TransactionCreateStepTwo (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:56:37)
+    at TransactionCreateContainer (http://localhost:3000/src/containers/TransactionCreateContainer.tsx:13:39)
+    at Route (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:702:27)
+    at PrivateRoute (http://localhost:3000/src/components/PrivateRoute.tsx:5:25)
+    at Switch (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:839:27)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:19269:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:19269:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at main
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at MainLayout (http://localhost:3000/src/components/MainLayout.tsx:46:23)
+    at PrivateRoutesContainer (http://localhost:3000/src/containers/PrivateRoutesContainer.tsx:16:35)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at App (http://localhost:3000/src/containers/App.tsx:29:22)
+    at DefaultPropsProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:303:33)
+    at RtlProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:343:8)
+    at ThemeProvider$2 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:307:10)
+    at ThemeProvider$1 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:384:10)
+    at ThemeProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:1303:15)
+    at StyledEngineProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:2423:10)
+    at Router (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:459:32)
+Warning: Failed %s type: %s%s prop Invalid prop `inputComponent` supplied to `ForwardRef(InputBase)`. Expected an element type that can hold a ref. Did you accidentally provide a plain function component instead? For more information see https://mui.com/r/caveat-with-refs-guide 
+    at InputBase (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:9437:16)
+    at OutlinedInput (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:25222:16)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at FormControl (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:18017:16)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at TextField (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:36454:16)
+    at Field (http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3328:22)
+    at form
+    at http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3382:21
+    at Formik (http://localhost:3000/node_modules/.vite/deps/formik.js?v=fa43d5e7:3187:18)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Paper (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:3215:16)
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at TransactionCreateStepTwo (http://localhost:3000/src/components/TransactionCreateStepTwo.tsx:56:37)
+    at TransactionCreateContainer (http://localhost:3000/src/containers/TransactionCreateContainer.tsx:13:39)
+    at Route (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:702:27)
+    at PrivateRoute (http://localhost:3000/src/components/PrivateRoute.tsx:5:25)
+    at Switch (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:839:27)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:19269:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Grid (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:19269:21)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at Container (http://localhost:3000/node_modules/.vite/deps/@mui_material.js?v=ba3cbf0d:1416:17)
+    at main
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at MainLayout (http://localhost:3000/src/components/MainLayout.tsx:46:23)
+    at PrivateRoutesContainer (http://localhost:3000/src/containers/PrivateRoutesContainer.tsx:16:35)
+    at div
+    at http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:1592:53
+    at App (http://localhost:3000/src/containers/App.tsx:29:22)
+    at DefaultPropsProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:303:33)
+    at RtlProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:343:8)
+    at ThemeProvider$2 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:307:10)
+    at ThemeProvider$1 (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:384:10)
+    at ThemeProvider (http://localhost:3000/node_modules/.vite/deps/styles-D6hy5Xfp.js?v=521c26a7:1303:15)
+    at StyledEngineProvider (http://localhost:3000/node_modules/.vite/deps/styled-BDaH55EP.js?v=521c26a7:2423:10)
+    at Router (http://localhost:3000/node_modules/.vite/deps/react-router.js?v=544c00e0:459:32)</pre>
+<h3>Kane's diagnosis</h3><p class="diagnosis">Kane&#39;s check failed: there is no console message at level &#39;error&#39; other than &#39;Failed to load resource&#39; messages.</p>
+
+<p class="links"><a href="https://test-manager.lambdatest.com/projects/01M7JZQQWG1NRVG5ZCN4KJ0TBK/test-cases/01M82AB5MZF3Y7TX6FDR43ZJW0/dashboard/share/US_79PK206XGN9G3S5KURIWYAK6YXCIX8H5OOB1YT2V709MSA86H2W0327L8KJE636T?type=summary&amp;agentView=true&amp;fqdn=summary-page" rel="noopener noreferrer">Failing Kane run in Test Manager</a></p>
+</div><figure><a href="evidence/sign-in__console.jpg"><img src="evidence/sign-in__console.jpg" alt="Screenshot of the failing step in the sign-in flow"></a><figcaption>Failing step, captured by Kane. Click to open full size.</figcaption></figure></div>
+</article>
+
+
+
+<footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>leakproof scan</code></span></footer>
+</main>
+</body>
+</html>

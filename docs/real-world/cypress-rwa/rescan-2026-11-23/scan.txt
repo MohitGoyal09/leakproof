@@ -1,0 +1,14 @@
+leakproof  scanning http://localhost:3000  ·  8 checks across 3 flows
+
+  LEAK   sign-in       Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  LEAK   sign-in       Cookie flags          Cookie flags check failed in the sign-in flow
+  LEAK   pay           Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  LEAK   sign-in       Secrets in storage    Authentication data stored under prohibited localStora…
+  PASS   pay           Hidden server errors
+  PASS   pay           Environment leaks
+  PASS   accounts      Hidden server errors
+  LEAK   accounts      Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+
+  3 leaks found  ·  377 credits  ·  6m 47s
+  Report  .leakproof/report.html
+

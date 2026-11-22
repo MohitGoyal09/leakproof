@@ -20,7 +20,7 @@ The config is [leakproof.yml](leakproof.yml). Its flows were written once from t
 | C | Console errors (pay) | `Function components cannot be given refs … NumberFormatCustom` | **Real, minor.** Hidden behind B: it appeared only after B was fixed, in the full re-scan, and went through the fix loop as a leak the first scan could not see. | `NumberFormatCustom` wrapped in `React.forwardRef` | Yes |
 
 ## What Leakproof missed here
-- **The user's auth state in `localStorage`.** The app keeps `authState` (the signed-in user's state) in `localStorage`. The storage check looks for token-like keys and values (`token`, `secret`, `api_key`, `eyJ…`, `sk_live_…`), so it passed. A broader check would flag it.
+- **The user's auth state in `localStorage`.** The app keeps `authState` (the signed-in user's state) in `localStorage`. The storage check looked for token-like keys and values (`token`, `secret`, `api_key`, `eyJ…`, `sk_live_…`), so it passed. **Now caught:** the check was widened (`auth`, `jwt`, `password` keys, and `sessionStorage`), and a re-scan on 23 Nov 2026 flagged it, two Kane runs out of two ([rescan-2026-11-23](rescan-2026-11-23/)).
 - **The hard-coded session secret** (`secret: "session secret"` in `backend/app.ts`). No browser check can see a server-side secret.
 - **No server errors, no environment leaks.** The app's own API on `localhost:3001` was correctly treated as the app's own host.
 
@@ -33,3 +33,19 @@ The config is [leakproof.yml](leakproof.yml). Its flows were written once from t
 | [prompts/](prompts/) | The prompt Claude Code got for each leak |
 | [commits.txt](commits.txt), [fixes.patch](fixes.patch) | One commit per proven fix, and the full diff |
 | [findings.json](findings.json) | The last scan: every check passed |
+
+## Re-scan on 23 Nov 2026: the wider storage check, with confirmed verdicts
+
+Same app, same commit, same config, Leakproof at commit `f1aa0c9`. Every failed check was run a second time
+before it counted ([scan.txt](rescan-2026-11-23/scan.txt), [findings.json](rescan-2026-11-23/findings.json),
+[report.html](rescan-2026-11-23/report.html)).
+
+| Check | First scan (21 Nov) | Re-scan (23 Nov) | Kane runs |
+|---|---|---|---|
+| Console errors (3 flows) | leak | leak | failed 2 of 2 in each flow |
+| Cookie flags | leak | leak | failed 2 of 2 |
+| Secrets in storage | **passed (missed `authState`)** | **leak** | failed 2 of 2 |
+| Hidden server errors, environment leaks | passed | passed | 1 run each |
+
+3 leaks after de-duplication (the same React warning in three flows counts once), 377 credits, 6 min 47 s.
+No verdict was split, so no third run was needed.

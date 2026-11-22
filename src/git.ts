@@ -20,6 +20,11 @@ export async function diffText(root: string, files: readonly string[]): Promise<
   return git(root, ["--literal-pathspecs", "diff", "--text", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
 }
 
+/** Put the index back to HEAD, keeping the working tree: what the agent staged or unstaged then cannot change a diff. */
+export async function unstageAll(root: string): Promise<void> {
+  await git(root, ["reset", "-q"]);
+}
+
 /** Every file path in the HEAD commit. A changed path not in it is new, whatever folder it is in. */
 export async function headFiles(root: string): Promise<Set<string>> {
   return new Set((await git(root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"], true)).split("\0").filter(Boolean));

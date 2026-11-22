@@ -230,17 +230,23 @@ const looksLikeComment = (line: string) => /^\s*(\/\/|\/\*|\*)/.test(line) && !l
 export function silencesConsole(diff: string): string | undefined {
   const added: string[] = [];
   const removed: string[] = [];
+  const addedRaw: string[] = [];
+  const removedRaw: string[] = [];
   let header = false;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) header = true;
     else if (line.startsWith("@@")) header = false;
-    else if (!header && line.startsWith("+")) added.push(uncomment(line.slice(1)));
-    else if (!header && line.startsWith("-")) removed.push(uncomment(line.slice(1)));
+    else if (!header && line.startsWith("+")) (addedRaw.push(line.slice(1)), added.push(uncomment(line.slice(1))));
+    else if (!header && line.startsWith("-")) (removedRaw.push(line.slice(1)), removed.push(uncomment(line.slice(1))));
   }
   const count = (side: string[], re: RegExp) => side.reduce((n, l) => n + (l.match(re)?.length ?? 0), 0);
-  // Fail closed both ways: every removed line counts, and an added call counts only on a line of code.
-  if (count(removed, CONSOLE_ERROR) > count(added.filter((l) => !looksLikeComment(l)), CONSOLE_ERROR)) return "it removes a console.error call";
-  const hit = SILENCERS.find(([re]) => count(added, re) > count(removed, re));
+  // Fail closed both ways, since stripping comments can misread "/*" inside a string: take the reading that rejects.
+  // Every removed line counts, and an added call counts only on a line of code.
+  const code = (side: string[]) => side.filter((l) => !looksLikeComment(l));
+  const removedCalls = Math.max(count(removed, CONSOLE_ERROR), count(removedRaw, CONSOLE_ERROR));
+  const addedCalls = Math.min(count(code(added), CONSOLE_ERROR), count(code(addedRaw), CONSOLE_ERROR));
+  if (removedCalls > addedCalls) return "it removes a console.error call";
+  const hit = SILENCERS.find(([re]) => count(added, re) > count(removed, re) || count(addedRaw, re) > count(removedRaw, re));
   return hit ? `it ${hit[1]}` : undefined;
 }
 

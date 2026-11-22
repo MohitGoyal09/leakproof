@@ -274,6 +274,7 @@ describe("silencesConsole", () => {
     expect(silencesConsole(diff("+*/ console.error = noop; /*"))).toMatch(/replaces console/);
     expect(silencesConsole(diff("+  * 2; console.error = noop;"))).toMatch(/replaces console/);
     expect(silencesConsole(diff("+// console.error = noop;"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff('+const a = "/*"; console.error = noop; const b = "*/";'))).toMatch(/replaces console/);
     expect(silencesConsole(diff('-console.error("x");', '+/* console.error("x"); */'))).toMatch(/removes a console\.error call/);
   });
 

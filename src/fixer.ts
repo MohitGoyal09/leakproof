@@ -4,7 +4,7 @@ import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState, headFiles } from "./git.js";
+import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState, headFiles, unstageAll } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
@@ -221,6 +221,8 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
    * Throws on anything it cannot read as text (a symlink, a folder or nested repository, a huge file): the caller rejects the edit.
    */
   const fullDiff = async (files: string[]) => {
+    // A file the agent removed from the index (git rm --cached) would diff as deleted, hiding its new content.
+    await unstageAll(root);
     const inHead = await headFiles(root);
     const fresh = files.filter((f) => !inHead.has(f));
     const texts = fresh.map((f) => {

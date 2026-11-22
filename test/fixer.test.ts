@@ -282,7 +282,11 @@ describe("fixAll", () => {
 
   it("reads a new file in a new folder, and new files after a mode-only change", async () => {
     const quiet = { content: "console.error = () => {};\n" };
-    for (const step of [{ write: { path: "lib/deep/quiet.js", ...quiet } }, { write: { path: "quiet.js", ...quiet }, git: [["update-index", "--chmod=+x", "app.js"]] }]) {
+    for (const step of [
+      { write: { path: "lib/deep/quiet.js", ...quiet } },
+      { write: { path: "quiet.js", ...quiet }, git: [["update-index", "--chmod=+x", "app.js"]] },
+      { write: { path: "app.js", ...quiet }, git: [["rm", "-q", "--cached", "app.js"]] },
+    ]) {
       writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");
       useFakeKane({ "level 'error'": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
       useFakeClaude([step, { write: { path: "app.js", content: "fixed\n" } }]);

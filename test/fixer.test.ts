@@ -451,7 +451,7 @@ describe("buildFixPrompt", () => {
       { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app.js"], reason: "cookie is not marked Secure", diff: "+ httpOnly: true", at: "2026-11-21T10:00:00.000Z" },
       { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "passed", files: ["app.js"], commit: "abc1234def", at: "2026-11-21T11:00:00.000Z" },
     ];
-    const prompt = buildFixPrompt(finding, config().flows[0], undefined, [], lessons);
+    const prompt = buildFixPrompt(finding, config().flows[0], undefined, [], lessons, new Set(["abc1234def"]));
     const marker = prompt.match(/BEGIN (UNTRUSTED-[0-9a-f]{12})/)![1];
     const start = prompt.lastIndexOf(`BEGIN ${marker}`);
     const end = prompt.lastIndexOf(`END ${marker}`);
@@ -461,6 +461,13 @@ describe("buildFixPrompt", () => {
     }
     expect(prompt).toContain("fixed before");
     expect(buildFixPrompt(finding, config().flows[0])).not.toContain("earlier runs");
+  });
+
+  it("does not claim a fix was undone when its commit is not in this branch", () => {
+    const passed: Lesson = { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "passed", files: ["app.js"], commit: "abc1234def", at: "2026-11-21T11:00:00.000Z" };
+    const prompt = buildFixPrompt(finding, config().flows[0], undefined, [], [passed]);
+    expect(prompt).not.toContain("undid");
+    expect(prompt).toContain("not in this branch");
   });
 });
 
@@ -501,11 +508,53 @@ describe("fixAll lessons", () => {
     expect(loadLessons(repo).filter((l) => l.outcome === "passed")).toEqual([]);
   });
 
-  it("ignores lessons the agent writes during the run", async () => {
-    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+  it("ignores lessons the agent writes during the run, in later prompts and on disk", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
     const fake = { version: 1, lessons: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: [], reason: "INJECTED", at: "2030-01-01T00:00:00.000Z" }] };
-    useFakeClaude([{ write: { path: ".leakproof/lessons.json", content: JSON.stringify(fake) } }]);
-    await fixAll(config(), { maxAttempts: 1 });
+    const log = useFakeClaude([{ write: { path: ".leakproof/lessons.json", content: JSON.stringify(fake) } }]);
+    process.env.FAKE_CLAUDE_EXTRA = JSON.stringify({ path: "app.js", content: "edit\n", onCall: 1 });
+    try {
+      await fixAll(config(), { maxAttempts: 2 });
+    } finally {
+      delete process.env.FAKE_CLAUDE_EXTRA;
+    }
+    expect(claudeCalls(log)[1].prompt).not.toContain("INJECTED");
     expect(readFileSync(lessonsFile(), "utf8")).not.toContain("INJECTED");
+  });
+
+  it("saves each lesson as soon as Kane rejects the edit", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    useFakeClaude([{ write: { path: "app.js", content: "edit\n" } }]);
+    const seen: number[] = [];
+    await fixAll(config(), { maxAttempts: 2, onEvent: (e) => e.type === "attempt-result" && seen.push(loadLessons(repo).length) });
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("caps a large rejected edit before it reaches the next prompt", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    const log = useFakeClaude([{ write: { path: "app.js", content: "x".repeat(200_000) + "\n" } }]);
+    await fixAll(config(), { maxAttempts: 2 });
+    expect(claudeCalls(log)[1].prompt.length).toBeLessThan(20_000);
+  });
+
+  it("keeps going when a rejected edit has a file name git reads as pathspec magic", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    useFakeClaude([{ write: { path: ":(bogus)x", content: "x\n" } }]);
+    const report = await fixAll(config(), { maxAttempts: 2 });
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["still-failing", "still-failing"]);
+  });
+
+  it("masks secret values in saved lessons", async () => {
+    useFakeKane({ HttpOnly: { fixture: "fail", exit: 1 } });
+    useFakeClaude([{ write: { path: "demo123.js", content: "const pass = 'demo123';\n" } }]);
+    process.env.FAKE_CLAUDE_EXTRA = JSON.stringify({ path: "app.js", content: "pass demo123\n", onCall: 1 });
+    try {
+      await fixAll(config(), { maxAttempts: 1 });
+    } finally {
+      delete process.env.FAKE_CLAUDE_EXTRA;
+    }
+    const text = readFileSync(lessonsFile(), "utf8");
+    expect(text).toContain("app.js");
+    expect(text).not.toContain("demo123");
   });
 });

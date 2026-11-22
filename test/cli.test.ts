@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -38,7 +39,18 @@ describe("cli main", () => {
     saveLessons(dir, [{ id: "home:network", check: "network", flow: "home", outcome: "passed", files: ["app/api/route.ts"], commit: "abc1234def5678", at: "2026-11-21T10:00:00.000Z" }]);
     useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
     await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
-    expect(out.join("\n")).toMatch(/came back.*home network.*abc1234/);
+    expect(out.join("\n")).toMatch(/home network.*abc1234.*not in this branch/);
+    expect(out.join("\n")).not.toContain("came back");
+  });
+
+  it("scan says a leak came back when Kane's proven fix is in this branch", async () => {
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+    git("init", "-q", "-b", "main");
+    git("-c", "user.email=d@e.x", "-c", "user.name=D", "commit", "-q", "--allow-empty", "-m", "fix");
+    saveLessons(dir, [{ id: "home:network", check: "network", flow: "home", outcome: "passed", files: ["app/api/route.ts"], commit: git("rev-parse", "HEAD"), at: "2026-11-21T10:00:00.000Z" }]);
+    useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
+    await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    expect(out.join("\n")).toMatch(/came back.*home network/);
   });
 
   it("scan exits 0 when clean", async () => {

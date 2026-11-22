@@ -23,7 +23,13 @@ export interface Lesson {
 }
 
 export const MAX_LESSONS = 50;
-const MAX_DIFF = 1500;
+export const MAX_DIFF = 1500;
+export const MAX_REASON = 500;
+
+/** Cut `text` to `max` characters, marking the cut. */
+export function cut(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}\n…` : text;
+}
 
 const lessonSchema = z.object({
   id: z.string(),
@@ -33,7 +39,7 @@ const lessonSchema = z.object({
   files: z.array(z.string()),
   reason: z.string().optional(),
   diff: z.string().optional(),
-  commit: z.string().optional(),
+  commit: z.string().regex(/^[0-9a-f]{7,64}$/).optional(),
   at: z.string(),
 });
 
@@ -57,7 +63,7 @@ export function loadLessons(configDir: string): Lesson[] {
 
 /** Write the lessons, keeping the newest MAX_LESSONS. */
 export function saveLessons(configDir: string, lessons: readonly Lesson[]): void {
-  const kept = lessons.slice(-MAX_LESSONS).map((l) => (l.diff && l.diff.length > MAX_DIFF ? { ...l, diff: `${l.diff.slice(0, MAX_DIFF)}\n…` } : l));
+  const kept = lessons.slice(-MAX_LESSONS).map((l) => (l.diff ? { ...l, diff: cut(l.diff, MAX_DIFF) } : l));
   writeOwnFile(lessonsPath(configDir), `${JSON.stringify({ version: 1, lessons: kept }, null, 2)}\n`);
 }
 

@@ -9,8 +9,9 @@ import { fixAll, interruptFix } from "./fixer.js";
 import { checkKaneLogin, removeVarsFiles, stopAllKane } from "./kane.js";
 import { runInit } from "./init.js";
 import { writeReport } from "./report/html.js";
-import { formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
+import { clean, formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
 import { exitCodeFor, outDir, scan } from "./scan.js";
+import { isAncestor } from "./git.js";
 import { cameBack, loadLessons } from "./lessons.js";
 import { CHECK_IDS, type CheckId } from "./types.js";
 
@@ -48,7 +49,12 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   const html = writeReport(config.configDir, { before: report }, Object.values(config.secrets));
   io.out(formatSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
   for (const back of cameBack(loadLessons(config.configDir), report.findings)) {
-    io.out(`  This leak came back: ${back.id.replace(/:(?=[^:]*$)/, " ")} was proven fixed by Kane in commit ${back.commit.slice(0, 7)}.`);
+    const name = back.id.replace(/:(?=[^:]*$)/, " ");
+    const commit = back.commit.slice(0, 7);
+    const line = (await isAncestor(config.configDir, back.commit))
+      ? `This leak came back: ${name} was proven fixed by Kane in commit ${commit}.`
+      : `${name}: Kane proved a fix in commit ${commit}, but that commit is not in this branch.`;
+    io.out(`  ${clean(line)}`);
   }
   return exitCodeFor(report);
 }

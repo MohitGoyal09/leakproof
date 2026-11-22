@@ -16,7 +16,14 @@ async function git(cwd: string, args: string[], raw = false): Promise<string> {
 export async function diffText(root: string, files: readonly string[]): Promise<string> {
   if (files.length === 0) return "";
   // No external diff tools or textconv filters: the agent wrote these files and could name one in .gitattributes.
-  return git(root, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
+  // Literal pathspecs: an agent-made name like ":(top)x" must not read as git pathspec magic.
+  return git(root, ["--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
+}
+
+/** True when `commit` is in the history of HEAD. False for an unknown commit or a folder outside git. */
+export async function isAncestor(root: string, commit: string): Promise<boolean> {
+  const res = await execa("git", [...SAFE, "merge-base", "--is-ancestor", commit, "HEAD"], { cwd: root, reject: false });
+  return res.exitCode === 0;
 }
 
 export async function repoRoot(dir: string): Promise<string> {

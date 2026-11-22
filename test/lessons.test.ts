@@ -43,7 +43,7 @@ describe("loadLessons", () => {
     const dir = tempDir();
     mkdirSync(join(dir, ".leakproof"));
     const good = lesson();
-    const bad = [{ ...good, outcome: "maybe" }, { ...good, check: "made-up" }, { ...good, files: "app.js" }, "text", null];
+    const bad = [{ ...good, outcome: "maybe" }, { ...good, check: "made-up" }, { ...good, files: "app.js" }, { ...good, commit: "\u001b[2Jabc1234" }, "text", null];
     writeFileSync(join(dir, ".leakproof", "lessons.json"), JSON.stringify({ lessons: [good, ...bad] }));
     expect(loadLessons(dir)).toEqual([good]);
   });

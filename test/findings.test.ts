@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertionFor } from "../src/checks.js";
-import { dedupe, deriveEvidence, guardedPaths, readEvidencePack, requestsKept, requestStillSucceeds, toFinding, type EvidencePack } from "../src/findings.js";
+import { dedupe, deriveEvidence, guardedPaths, readEvidencePack, requestsKept, requestStillSucceeds, silencesConsole, toFinding, type EvidencePack } from "../src/findings.js";
 import { parseNdjson } from "../src/kane.js";
 import type { Finding, RunUnit } from "../src/types.js";
 import { tempDir } from "./helpers.js";
@@ -192,5 +192,91 @@ describe("guardedPaths and requestsKept", () => {
   it("cannot judge a run with no session folder, and never reads one from the working directory", () => {
     expect(requestsKept(finding("network", ["GET /api/a returned 500"]), undefined, tempDir())).toBeUndefined();
     expect(requestsKept(finding("network", ["GET /api/a returned 500"]), "", tempDir())).toBeUndefined();
+  });
+});
+
+describe("silencesConsole", () => {
+  const diff = (...lines: string[]) => ["diff --git a/app.js b/app.js", "--- a/app.js", "+++ b/app.js", "@@ -1,3 +1,3 @@", ...lines].join("\n");
+
+  it("accepts a fix of the cause", () => {
+    expect(silencesConsole(diff('-  window.analytics.track("add");', '+  window.analytics?.track("add");'))).toBeUndefined();
+  });
+
+  it("rejects a removed console.error call", () => {
+    expect(silencesConsole(diff('-  console.error("cart failed", err);', "+  // nothing"))).toMatch(/removes a console\.error call/);
+  });
+
+  it("accepts a console.error call that only moves", () => {
+    expect(silencesConsole(diff('-  console.error("cart failed", err);', '+    console.error("cart failed", err);'))).toBeUndefined();
+  });
+
+  it("rejects an override of a console method or of console itself", () => {
+    expect(silencesConsole(diff("+console.error = () => {};"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff('+console["error"] = function () {};'))).toMatch(/replaces console/);
+    expect(silencesConsole(diff("+Object.defineProperty(window.console, 'error', { value() {} });"))).toMatch(/replaces console/);
+    expect(silencesConsole(diff("+globalThis.console = { ...console, error() {} };"))).toMatch(/replaces console/);
+  });
+
+  it("does not read a comparison as an override", () => {
+    expect(silencesConsole(diff("+if (console.error === undefined) throw new Error('no console');"))).toBeUndefined();
+  });
+
+  it("rejects a new global error handler", () => {
+    expect(silencesConsole(diff("+window.onerror = () => true;"))).toMatch(/global error handler/);
+    expect(silencesConsole(diff('+window.addEventListener("unhandledrejection", (e) => e.preventDefault());'))).toMatch(/global error handler/);
+  });
+
+  it("rejects an empty catch that swallows the error", () => {
+    expect(silencesConsole(diff("+try { track(); } catch {}"))).toMatch(/empty catch/);
+    expect(silencesConsole(diff("+try { track(); } catch (e) { }"))).toMatch(/empty catch/);
+    expect(silencesConsole(diff("+load().catch(() => {});"))).toMatch(/empty catch/);
+    expect(silencesConsole(diff("+load().catch(() => undefined);"))).toMatch(/empty catch/);
+  });
+
+  it("ignores an empty catch that was already there", () => {
+    expect(silencesConsole(diff('   fetch("/api/collect").catch(() => {});', "-  bad();", "+  good();"))).toBeUndefined();
+    expect(silencesConsole(diff('-fetch("http://staging/collect").catch(() => {});', '+fetch("/api/collect").catch(() => {});'))).toBeUndefined();
+  });
+
+  it("rejects suppressHydrationWarning", () => {
+    expect(silencesConsole(diff("+  <time suppressHydrationWarning>{now}</time>"))).toMatch(/suppressHydrationWarning/);
+  });
+
+  it("does not count the file header as an added or removed line", () => {
+    expect(silencesConsole("diff --git a/x b/x\n--- a/console.error = x\n+++ b/console.error = x\n@@ -1 +1 @@\n")).toBeUndefined();
+  });
+
+  it("counts content lines that start like a header, in a hunk and in a new file", () => {
+    expect(silencesConsole(diff('--- console.error("x");', "+ok"))).toMatch(/removes a console\.error call/);
+    expect(silencesConsole("+++globalThis.x, console.error = () => {}")).toMatch(/replaces console/);
+  });
+
+  it("rejects compound assignments, shadows and other ways to replace console", () => {
+    for (const line of ["console.error ||= noop;", "console.error ??= noop;", "const console = { log() {} };", "console = quiet;", "global.console = quiet;", "Reflect.set(console, 'error', noop);", "Object.defineProperties(console, { error: { value: noop } });"])
+      expect(silencesConsole(diff(`+${line}`)), line).toMatch(/replaces console/);
+  });
+
+  it("rejects empty catches with a comment, a function or a constant", () => {
+    for (const line of ["try { a(); } catch (e) { /* ignore */ }", "a().catch(function () {});", "a().catch(() => false);", "a().catch(() => []);", "a().catch(() => ({}));"])
+      expect(silencesConsole(diff(`+${line}`)), line).toMatch(/empty catch/);
+  });
+
+  it("counts each match, not each line", () => {
+    expect(silencesConsole(diff("-a().catch(() => {});", "+a().catch(() => {}); b().catch(() => {});"))).toMatch(/empty catch/);
+  });
+
+  it("does not let a commented-out call make up for a removed one", () => {
+    expect(silencesConsole(diff('-  console.error("x");', '+  // console.error("x");'))).toMatch(/removes a console\.error call/);
+  });
+
+  it("accepts error handlers on an element and a console field on another object", () => {
+    for (const line of ["img.onerror = () => (img.src = fallback);", 'el.addEventListener("error", retry);', "foo.console.x = 1;"])
+      expect(silencesConsole(diff(`+${line}`)), line).toBeUndefined();
+  });
+
+  it("stays fast on a very long line", () => {
+    const start = Date.now();
+    silencesConsole(`+${"console[".repeat(100000)}\n+${"catch(".repeat(100000)}`);
+    expect(Date.now() - start).toBeLessThan(1000);
   });
 });

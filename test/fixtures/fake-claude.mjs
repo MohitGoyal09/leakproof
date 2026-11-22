@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Test double for `claude -p`. FAKE_CLAUDE_PLAN: JSON list, one action per call:
-// {"write": {"path": "x", "content": "y"}, "git": [[...args], ...]} | {"exit": n} | {"sleep": ms}.
+// {"write": {"path": "x", "content": "y"}, "git": [[...args], ...], "symlink": {"target", "path"}} | {"exit": n} | {"sleep": ms}.
 // Logs each prompt, and the names of the env vars it got, to FAKE_CLAUDE_LOG.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, symlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const log = process.env.FAKE_CLAUDE_LOG;
@@ -18,6 +18,7 @@ if (action.write) {
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, action.write.content);
 }
+if (action.symlink) symlinkSync(action.symlink.target, join(process.cwd(), action.symlink.path));
 for (const args of action.git ?? []) execFileSync("git", args, { cwd: process.cwd(), stdio: "ignore" });
 // FAKE_CLAUDE_EXTRA: {"path", "content", "onCall": n}: one more file written on call n (1-based).
 const extra = process.env.FAKE_CLAUDE_EXTRA ? JSON.parse(process.env.FAKE_CLAUDE_EXTRA) : undefined;

@@ -1,15 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
-import { accessSync, constants, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { accessSync, constants, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { delimiter, join, relative } from "node:path";
 import { execa } from "execa";
 import { startApp, type AppHandle } from "./app.js";
 import { CHECKS } from "./checks.js";
-import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState } from "./git.js";
+import { changedFiles, commitAll, createBranch, diffText, isAncestor, fixBranchName, gitState, isClean, repoRoot, restoreExclude, restoreGitState, revertAll, sameGitState, untrackedFiles } from "./git.js";
 import { ignoredChanges, isBuildFile, restoreIgnored, snapshotIgnored, writeOwnFile } from "./guard.js";
 import { redactSecrets } from "./redact.js";
 import { writeReport } from "./report/html.js";
 import { clean } from "./report/terminal.js";
-import { guardedPaths, requestsKept } from "./findings.js";
+import { guardedPaths, requestsKept, silencesConsole } from "./findings.js";
 import { cut, lessonsFor, loadLessons, MAX_DIFF, MAX_REASON, saveLessons, type Lesson } from "./lessons.js";
 import { findingFor, runUnit, scan, type ScanOptions } from "./scan.js";
 import type { Config, Finding, FindingOutcome, FixAttempt, Flow, FullReport, KaneResult } from "./types.js";
@@ -99,6 +99,7 @@ export function buildFixPrompt(finding: Finding, flow: Flow, last?: KaneResult, 
     "- Do not put the fix in gitignored files such as .env files.",
     "- Do not delete features the flow uses.",
     "- Do not remove a failing or slow request; make it succeed, or make it fast.",
+    "- Do not hide an error; fix its cause. Leakproof rejects an edit that removes console.error calls, replaces console, adds an empty catch or adds a global error handler.",
     "- Do not commit. Leakproof re-runs Kane and commits only when the check passes.",
   ];
   return redactSecrets(lines.join("\n"), secrets);
@@ -115,10 +116,13 @@ function lessonLines(l: Lesson, finding: Finding, merged: ReadonlySet<string>): 
       ? [`  - This leak was fixed before (${date}) in commit ${commit}, which changed ${files}. Something undid that fix; see git show ${commit}.`]
       : [`  - Kane proved a fix for this leak before (${date}) in commit ${commit}, which changed ${files}, but that commit is not in this branch; see git show ${commit}.`];
   }
-  const head = `  - Rejected (${l.flow} flow, ${date}): an edit to ${files}. Kane re-ran the check and it still failed: ${l.reason ?? "no reason given"}`;
+  const head = `  - Rejected (${l.flow} flow, ${date}): an edit to ${files}. ${l.by === "leakproof" ? "Leakproof rejected it before Kane ran" : "Kane re-ran the check and it still failed"}: ${l.reason ?? "no reason given"}`;
   // A "| " prefix keeps the diff's own "-" and "+" lines from reading as list items once indentation is gone.
   return l.diff ? [head, "The rejected edit (git diff):", ...l.diff.trimEnd().split("\n").map((line) => `| ${line}`)] : [head];
 }
+
+/** New files bigger than this are not read for the console check; the edit is rejected instead. */
+const MAX_CHECKED_FILE = 2_000_000;
 
 /** The agent process now running, so an interrupt can kill it before undoing its edits. */
 let activeAgent: { kill: (signal?: NodeJS.Signals) => boolean } | undefined;
@@ -212,6 +216,21 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
   };
   /** The uncommitted diff for a lesson. A lesson must never stop the run, so a git error gives no diff. */
   const lessonDiff = (files: string[]) => diffText(root, files).catch(() => "");
+  /**
+   * The edit as a diff, with new files as added lines, so nothing the agent wrote escapes a check.
+   * Throws on anything it cannot read as text (a symlink, a folder or nested repository, a huge file): the caller rejects the edit.
+   */
+  const fullDiff = async (files: string[]) => {
+    const changed = new Set(files);
+    const fresh = (await untrackedFiles(root)).filter((f) => changed.has(f));
+    const texts = fresh.map((f) => {
+      const stat = lstatSync(join(root, f));
+      if (!stat.isFile()) throw new Error(`${f} is a symlink, a folder or a nested repository`);
+      if (stat.size > MAX_CHECKED_FILE) throw new Error(`${f} is over ${MAX_CHECKED_FILE / 1e6} MB`);
+      return readFileSync(join(root, f), "utf8").split("\n").map((l) => `+${l}`).join("\n");
+    });
+    return [await diffText(root, files.filter((f) => !fresh.includes(f))), ...texts].join("\n");
+  };
   const learn = (finding: Finding, outcome: Lesson["outcome"], files: string[], extra: Partial<Lesson> = {}) => {
     const scrub = (text: string | undefined, max: number) => (text === undefined ? undefined : cut(redactSecrets(text, secrets), max));
     const lesson: Lesson = {
@@ -310,6 +329,25 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
           if (files.length === 0) {
             const note = hidden.length > 0 ? `the agent changed only gitignored files, which were put back: ${hidden.join(", ")}` : "the agent changed no files";
             record({ attempt, files, verdict: "still-failing", note });
+            continue;
+          }
+          // A console check passes as well when the error is hidden as when it is fixed: reject the known ways to hide it, before Kane runs.
+          let edit = "";
+          let note: string | undefined;
+          if (finding.check === "console") {
+            try {
+              edit = await fullDiff(files);
+              const hiding = silencesConsole(edit);
+              if (hiding) note = `the edit hides the error instead of fixing it: ${hiding}`;
+            } catch (error: unknown) {
+              // Fail closed: an edit Leakproof cannot read could hide anything.
+              note = `Leakproof could not check the edit for a hidden error: ${error instanceof Error ? error.message : String(error)}`;
+            }
+          }
+          if (note) {
+            learn(finding, "rejected", files, { reason: note, diff: edit, by: "leakproof" });
+            await undo();
+            record({ attempt, files, verdict: "rejected", note });
             continue;
           }
           const startError = await restartAfterEdit();

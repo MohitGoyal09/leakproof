@@ -256,6 +256,42 @@ describe("fixAll", () => {
     expect(prompts[1]).toContain("Your last attempt did not fix it");
   });
 
+  it("rejects a console fix that hides the error, without calling Kane for it", async () => {
+    writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");
+    writeFileSync(join(repo, "app.js"), 'try { track(); } catch (err) { console.error("track failed", err); }\n');
+    git("commit", "-qam", "log errors");
+    const kane = useFakeKane({ "level 'error'": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    const log = useFakeClaude([{ write: { path: "app.js", content: "try { track(); } catch (err) {}\n" } }, { write: { path: "app.js", content: 'try { window.track?.(); } catch (err) { console.error("track failed", err); }\n' } }]);
+    const report = await fixAll(config());
+    const attempts = report.outcomes![0].attempts;
+    expect(attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+    expect(attempts[0].note).toMatch(/hides the error/);
+    expect(claudeCalls(log)[1].prompt).toMatch(/Leakproof rejected it before Kane ran: the edit hides the error/);
+    expect(loadLessons(repo).find((l) => l.outcome === "rejected")).toMatchObject({ by: "leakproof", files: ["app.js"] });
+    expect(kaneCalls(kane)).toHaveLength(3);
+  });
+
+  it("rejects a console fix that silences console in a new file", async () => {
+    writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");
+    useFakeKane({ "level 'error'": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    useFakeClaude([{ write: { path: "quiet.js", content: "console.error = () => {};\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config());
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+    expect(existsSync(join(repo, "quiet.js"))).toBe(false);
+  });
+
+  it("rejects a console fix it cannot read: a new symlink or a nested repository", async () => {
+    for (const step of [{ symlink: { target: "/etc/hosts", path: "quiet.js" } }, { write: { path: "sub/quiet.js", content: "console.error = () => {};\n" }, git: [["init", "-q", "sub"]] }]) {
+      writeRepo(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, "console");
+      useFakeKane({ "level 'error'": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+      useFakeClaude([step, { write: { path: "app.js", content: "fixed\n" } }]);
+      const attempts = (await fixAll(config())).outcomes![0].attempts;
+      expect(attempts.map((a) => a.verdict)).toEqual(["rejected", "fixed"]);
+      expect(attempts[0].note).toMatch(/could not check/);
+      expect(existsSync(join(repo, "quiet.js")) || existsSync(join(repo, "sub"))).toBe(false);
+    }
+  });
+
   it("rejects an edit to leakproof.yml without calling Kane for it", async () => {
     const kane = useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
     useFakeClaude([{ write: { path: "leakproof.yml", content: "flows: []\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);

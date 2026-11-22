@@ -15,9 +15,14 @@ async function git(cwd: string, args: string[], raw = false): Promise<string> {
 /** The uncommitted diff of `files` against HEAD. New untracked files are not in it. */
 export async function diffText(root: string, files: readonly string[]): Promise<string> {
   if (files.length === 0) return "";
-  // No external diff tools or textconv filters: the agent wrote these files and could name one in .gitattributes.
+  // No external diff tools or textconv filters, and always text: the agent wrote these files and could mark them binary in .gitattributes.
   // Literal pathspecs: an agent-made name like ":(top)x" must not read as git pathspec magic.
-  return git(root, ["--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
+  return git(root, ["--literal-pathspecs", "diff", "--text", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--", ...files], true);
+}
+
+/** Files git does not track yet and does not ignore. A nested repository shows as its folder ("sub/"). */
+export async function untrackedFiles(root: string): Promise<string[]> {
+  return (await git(root, ["ls-files", "-z", "--others", "--exclude-standard", "--directory", "--no-empty-directory"], true)).split("\0").filter(Boolean);
 }
 
 /** True when `commit` is in the history of HEAD. False for an unknown commit or a folder outside git. */
@@ -62,7 +67,8 @@ export async function isClean(root: string, outputDir = OUTPUT_DIR): Promise<boo
 /** Throw away every uncommitted change, staged or not, keeping Leakproof's output folder. */
 export async function revertAll(root: string, outputDir = OUTPUT_DIR): Promise<void> {
   await git(root, ["reset", "-q", "--hard"]);
-  await git(root, ["clean", "-fd", "-e", `/${outputDir}/`]);
+  // -ff: a nested repository the agent made is removed too; one -f leaves it in place.
+  await git(root, ["clean", "-ffd", "-e", `/${outputDir}/`]);
 }
 
 /** Ignored files, relative to the root. Git lists them; callers decide which to watch. */

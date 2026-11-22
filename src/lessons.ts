@@ -16,6 +16,8 @@ export interface Lesson {
   reason?: string;
   /** The rejected edit, cut short. */
   diff?: string;
+  /** "leakproof" when Leakproof's own guard rejected the edit before Kane ran; absent when Kane rejected it. */
+  by?: "leakproof";
   /** The commit Leakproof made for the proven fix (passed only). */
   commit?: string;
   /** ISO time the lesson was learned. */
@@ -39,6 +41,7 @@ const lessonSchema = z.object({
   files: z.array(z.string()),
   reason: z.string().optional(),
   diff: z.string().optional(),
+  by: z.literal("leakproof").optional(),
   commit: z.string().regex(/^[0-9a-f]{7,64}$/).optional(),
   at: z.string(),
 });

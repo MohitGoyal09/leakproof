@@ -166,7 +166,7 @@ ${run ? `<p class="links"><a href="${esc(run)}" rel="noopener noreferrer">Failin
   const lessons = report.lessons && (report.lessons.used > 0 || report.lessons.learned.length > 0) ? report.lessons : undefined;
   const lessonItem = (l: Lesson): string => {
     const stamp = l.outcome === "passed" ? `<span class="stamp sealed">PROVEN</span>` : `<span class="stamp leak">REJECTED</span>`;
-    const what = l.outcome === "passed" ? `Kane's re-run passed. Commit ${esc((l.commit ?? "").slice(0, 7))}.` : `Kane's re-run still failed: ${esc(l.reason ?? "no reason given")}`;
+    const what = l.outcome === "passed" ? `Kane's re-run passed. Commit ${esc((l.commit ?? "").slice(0, 7))}.` : `${l.by === "leakproof" ? "Leakproof rejected it before Kane ran" : "Kane's re-run still failed"}: ${esc(l.reason ?? "no reason given")}`;
     return `<li>${stamp}<span><strong>${esc(CHECKS[l.check].label)}</strong> · ${esc(l.flow)} flow. ${what}</span><span class="files">${l.files.map(esc).join("<br>")}</span></li>`;
   };
   const lessonsSection = lessons

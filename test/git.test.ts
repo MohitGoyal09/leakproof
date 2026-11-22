@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { diffText, isAncestor, parsePorcelain, revertAll } from "../src/git.js";
+import { diffText, isAncestor, parsePorcelain, revertAll, untrackedFiles } from "../src/git.js";
 import { tempDir } from "./helpers.js";
 
 describe("parsePorcelain", () => {
@@ -63,6 +63,21 @@ describe("diffText and isAncestor", () => {
     writeFileSync(join(dir, ":(top)x"), "new\n");
     const diff = await diffText(dir, [":(bogus)x", ":(top)x", "a.js"]);
     expect(diff).toContain("+two");
+  });
+
+  it("shows text lines even when .gitattributes marks the file as binary", async () => {
+    const { dir } = repo();
+    writeFileSync(join(dir, ".gitattributes"), "*.js -diff\n");
+    writeFileSync(join(dir, "a.js"), "two\n");
+    expect(await diffText(dir, ["a.js"])).toContain("+two");
+  });
+
+  it("lists new files, including a nested repository, without naming them on the command line", async () => {
+    const { dir, git } = repo();
+    writeFileSync(join(dir, "b.js"), "new\n");
+    git("init", "-q", "sub");
+    writeFileSync(join(dir, "sub", "q.js"), "x\n");
+    expect((await untrackedFiles(dir)).sort()).toEqual(["b.js", "sub/"]);
   });
 
   it("says whether a commit is in the current branch's history", async () => {

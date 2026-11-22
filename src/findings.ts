@@ -180,6 +180,67 @@ export function requestsKept(f: Finding, sessionDir: string | undefined, outDir:
   return paths.every((p) => requestStillSucceeds(pack, p));
 }
 
+// Ways to make a console check pass without fixing the error. Each counts only when the edit adds more matches than it removes.
+// ponytail: a line-by-line text match; an aliased console (`const c = console; c.error = …`), a catch split over lines or a
+// deleted feature gets past it. Closing those needs a behaviour check. Quantifiers are bounded, so a long line stays fast.
+const NOT_MEMBER = String.raw`(?<![.\w$])`;
+const GLOBAL = String.raw`(?:(?:window|globalThis|self|global)\s*\.\s*)?`;
+const ASSIGN = String.raw`(?:\?\?|\|\||&&)?=(?!=)`;
+const EMPTY = String.raw`\{\s*(?:\/\*[^*\n]{0,200}\*\/\s*)?\}`;
+const SILENCERS: [RegExp, string][] = [
+  [
+    new RegExp(
+      [
+        String.raw`${NOT_MEMBER}${GLOBAL}console\s*(?:\.\s*\w{1,40}|\[[^\]\n]{1,60}\])?\s*${ASSIGN}`,
+        String.raw`\b(?:const|let|var)\s+console\b`,
+        String.raw`\b(?:Object\.(?:defineProperty|defineProperties|assign)|Reflect\.(?:set|defineProperty))\(\s*${GLOBAL}console\b`,
+      ].join("|"),
+      "g",
+    ),
+    "replaces console or one of its methods",
+  ],
+  [
+    new RegExp(String.raw`${NOT_MEMBER}${GLOBAL}(?:on(?:error|unhandledrejection)\s*${ASSIGN}|addEventListener\(\s*["'` + "`" + String.raw`](?:error|unhandledrejection)["'` + "`" + "])", "g"),
+    "adds a global error handler",
+  ],
+  [
+    new RegExp(
+      [
+        String.raw`\bcatch\s*(?:\([^)\n]{0,80}\))?\s*${EMPTY}`,
+        String.raw`\.catch\(\s*(?:\(\s*\w{0,40}\s*\)|\w{1,40})\s*=>\s*(?:${EMPTY}|undefined|null|void 0|false|true|0|""|''|\[\s*\]|\(\s*\{\s*\}\s*\))\s*\)`,
+        String.raw`\.catch\(\s*function\s*\w{0,40}\s*\(\s*\w{0,40}\s*\)\s*${EMPTY}\s*\)`,
+      ].join("|"),
+      "g",
+    ),
+    "adds an empty catch that swallows the error",
+  ],
+  [/\bsuppressHydrationWarning\b/g, "adds suppressHydrationWarning"],
+];
+const CONSOLE_ERROR = /\bconsole\s*\.\s*error\s*\(/g;
+const COMMENT = /^\s*(\/\/|\/\*|\*)/;
+
+/**
+ * Why a console fix hides the error instead of fixing it, read from its diff; undefined when it does not.
+ * File headers (from "diff --git" to the first "@@") are skipped; lines outside any file section count as added or removed.
+ */
+export function silencesConsole(diff: string): string | undefined {
+  const added: string[] = [];
+  const removed: string[] = [];
+  let header = false;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) header = true;
+    else if (line.startsWith("@@")) header = false;
+    else if (!header && !COMMENT.test(line.slice(1))) {
+      if (line.startsWith("+")) added.push(line.slice(1));
+      else if (line.startsWith("-")) removed.push(line.slice(1));
+    }
+  }
+  const count = (side: string[], re: RegExp) => side.reduce((n, l) => n + (l.match(re)?.length ?? 0), 0);
+  if (count(removed, CONSOLE_ERROR) > count(added, CONSOLE_ERROR)) return "it removes a console.error call";
+  const hit = SILENCERS.find(([re]) => count(added, re) > count(removed, re));
+  return hit ? `it ${hit[1]}` : undefined;
+}
+
 const TITLE_MAX = 90;
 
 /** A title is one line, at most 90 characters: a console error's stack trace belongs in the evidence, not the heading. */

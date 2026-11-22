@@ -30,6 +30,8 @@ export interface FixOptions {
   agentTimeoutMs?: number;
   onEvent?: (event: FixEvent) => void;
   onScanResult?: ScanOptions["onResult"];
+  /** Re-check failed checks in the first and final scans (see ScanOptions.confirm). */
+  confirm?: boolean;
 }
 
 export type FixEvent =
@@ -127,8 +129,8 @@ const MAX_CHECKED_FILE = 2_000_000;
 /** The agent process now running, so an interrupt can kill it before undoing its edits. */
 let activeAgent: { kill: (signal?: NodeJS.Signals) => boolean } | undefined;
 
-/** Kane and TestMu AI credentials in the environment. The agent never needs them. */
-const KANE_ENV = /^(KANE|LT|LAMBDATEST|TESTMU)_/i;
+/** Kane, TestMu AI and CI credentials in the environment. The agent never needs them. */
+const KANE_ENV = /^(KANE|LT|LAMBDATEST|TESTMU|ACTIONS)_|^(GITHUB|GH)_TOKEN$/i;
 
 /** The environment without the flow's secrets and Kane's credentials, so page text cannot talk the agent into leaking them. */
 export function agentEnv(hidden: readonly string[], env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -361,8 +363,9 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
             record({ attempt, files, verdict: "error", note: "the app failed to start after the change" });
             continue;
           }
-          const { unit, result } = await runUnit(config, finding.id);
-          extraCredits += result.credits ?? 0;
+          // With confirm, a fix's pass is re-checked too: one lucky Kane run must not become a commit.
+          const { unit, result, credits } = await runUnit(config, finding.id, opts.confirm ? "passed" : undefined);
+          extraCredits += credits;
           // A hidden 500 or a slow request is not fixed by deleting the request: the passing run's own
           // network log must still show every request named in Kane's evidence, succeeding.
           const mustKeep = guardedPaths(finding);
@@ -403,10 +406,10 @@ export async function fixAll(config: Config, opts: FixOptions = {}): Promise<Ful
     const rescan = async () => {
       opts.onEvent?.({ type: "rescan" });
       await restart();
-      return scan(config, { manageApp: false, onResult: opts.onScanResult });
+      return scan(config, { manageApp: false, onResult: opts.onScanResult, confirm: opts.confirm });
     };
 
-    const before = await scan(config, { manageApp: false, onResult: opts.onScanResult });
+    const before = await scan(config, { manageApp: false, onResult: opts.onScanResult, confirm: opts.confirm });
     opts.onEvent?.({ type: "scanned", findings: before.findings.length });
     const outcomes: FindingOutcome[] = [];
     for (const finding of before.findings) outcomes.push(await fixFinding(finding));

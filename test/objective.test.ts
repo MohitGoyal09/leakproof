@@ -72,6 +72,16 @@ describe("assertionFor", () => {
     expect(assertionFor("console", ctx)).toContain("other than 'Failed to load resource'");
   });
 
+  it("storage checks auth state and sessionStorage too, one storage area per sentence", () => {
+    const text = assertionFor("storage", ctx);
+    for (const word of ["'auth'", "'jwt'", "'password'", "'token'", "'eyJ'"]) expect(text).toContain(word);
+    const sentences = text.split(/\. (?=Then )/);
+    expect(sentences.some((s) => s.includes("sessionStorage key"))).toBe(true);
+    expect(sentences.some((s) => s.includes("sessionStorage value"))).toBe(true);
+    // Kane checks only one condition per sentence (docs/kane-assertions.md).
+    for (const s of sentences) expect(s.includes("localStorage") && s.includes("sessionStorage"), s).toBe(false);
+  });
+
   it("has one assertion per check id", () => {
     for (const id of ["cookies", "storage", "network", "console", "env-leak", "vitals"] as const) {
       expect(assertionFor(id, ctx)).toMatch(/^assert that /);

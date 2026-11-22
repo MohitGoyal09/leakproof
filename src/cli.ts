@@ -12,6 +12,7 @@ import { writeReport } from "./report/html.js";
 import { clean, formatAttempt, formatExhibitHead, formatFixSummary, formatHeader, formatRow, formatSummary } from "./report/terminal.js";
 import { exitCodeFor, outDir, scan } from "./scan.js";
 import { isAncestor } from "./git.js";
+import { writeCiOutputs } from "./ci.js";
 import { cameBack, loadLessons } from "./lessons.js";
 import { CHECK_IDS, type CheckId } from "./types.js";
 
@@ -36,7 +37,9 @@ function parseCheck(value: string): CheckId {
   return value as CheckId;
 }
 
-async function scanCommand(opts: { config: string; only?: string; flow?: string }, io: Io): Promise<number> {
+const CONFIRM_HELP = "count a failed check after one Kane run (by default it is run again, and a split goes to a third run)";
+
+async function scanCommand(opts: { config: string; only?: string; flow?: string; confirm: boolean }, io: Io): Promise<number> {
   const config = loadConfig(opts.config);
   const only = opts.only ? parseCheck(opts.only) : undefined;
   const flows = config.flows.filter((f) => (!opts.flow || f.name === opts.flow) && (!only || f.checks.includes(only)));
@@ -45,9 +48,10 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   await checkKaneLogin();
   io.out(formatHeader(config.url, units, flows.length));
   const t0 = Date.now();
-  const report = await scan(config, { only, flow: opts.flow, onResult: (row) => io.out(formatRow(row, io.width)) });
+  const report = await scan(config, { only, flow: opts.flow, confirm: opts.confirm, onResult: (row) => io.out(formatRow(row, io.width)) });
   const html = writeReport(config.configDir, { before: report }, Object.values(config.secrets));
   io.out(formatSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
+  writeCiOutputs(report, process.env, io.out);
   for (const back of cameBack(loadLessons(config.configDir), report.findings)) {
     const name = back.id.replace(/:(?=[^:]*$)/, " ");
     const commit = back.commit.slice(0, 7);
@@ -59,7 +63,7 @@ async function scanCommand(opts: { config: string; only?: string; flow?: string 
   return exitCodeFor(report);
 }
 
-async function fixCommand(opts: { config: string; maxAttempts: string; agent: string }, io: Io): Promise<number> {
+async function fixCommand(opts: { config: string; maxAttempts: string; agent: string; confirm: boolean }, io: Io): Promise<number> {
   if (opts.agent !== "claude") throw new UsageError(`Unsupported agent "${opts.agent}". Only "claude" is supported right now.`);
   const maxAttempts = Number.parseInt(opts.maxAttempts, 10);
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) throw new UsageError("--max-attempts must be a whole number from 1 to 10.");
@@ -75,6 +79,7 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
   let current = "";
   const report = await fixAll(config, {
     maxAttempts,
+    confirm: opts.confirm,
     onScanResult: (row) => io.out(formatRow(row, io.width)),
     onEvent: (e) => {
       if (e.type === "scanned") io.out(`\n  ${e.findings === 0 ? "Nothing to fix." : `${e.findings} leak${e.findings === 1 ? "" : "s"} found. Handing each one to Claude Code, then asking Kane to prove the fix.`}`);
@@ -89,6 +94,7 @@ async function fixCommand(opts: { config: string; maxAttempts: string; agent: st
   });
   const html = `${outDir(config)}/report.html`;
   io.out(formatFixSummary(report, Date.now() - t0, relative(process.cwd(), html) || html));
+  writeCiOutputs(report, process.env, io.out);
   return report.after && report.after.errors.length > 0 ? 2 : (report.after?.findings.length ?? 0) > 0 ? 1 : 0;
 }
 
@@ -107,6 +113,7 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .option("-c, --config <path>", "path to leakproof.yml", "leakproof.yml")
     .option("--only <check>", `run one check: ${CHECK_IDS.join(", ")}`)
     .option("--flow <name>", "run one flow")
+    .option("--no-confirm", CONFIRM_HELP)
     .action(async (opts) => {
       code = await scanCommand(opts, io);
     });
@@ -136,6 +143,7 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
     .option("-c, --config <path>", "path to leakproof.yml", "leakproof.yml")
     .option("--max-attempts <n>", "attempts per leak", "3")
     .option("--agent <name>", "coding agent", "claude")
+    .option("--no-confirm", CONFIRM_HELP)
     .action(async (opts) => {
       code = await fixCommand(opts, io);
     });

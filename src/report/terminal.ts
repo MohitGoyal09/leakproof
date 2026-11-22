@@ -21,6 +21,16 @@ function fit(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
+/** For a re-checked verdict that was not unanimous: "failed 1 of 3 runs, not counted". Undefined otherwise. */
+export function voteNote(row: Pick<UnitResult, "status" | "votes">): string | undefined {
+  const votes = row.votes ?? [];
+  const failed = votes.filter((v) => v === "failed").length;
+  const noVote = votes.filter((v) => v !== "failed" && v !== "passed").length;
+  if (failed === 0 || (failed === votes.length && noVote === 0)) return undefined;
+  const outcome = row.status === "failed" ? "counted" : row.status === "passed" ? "not counted" : "not settled";
+  return `failed ${failed} of ${votes.length} runs, ${noVote > 0 ? `${noVote} could not run, ` : ""}${outcome}`;
+}
+
 function badge(status: UnitResult["status"]): string {
   if (status === "failed") return pc.bold(pc.red("LEAK".padEnd(COL_STATUS)));
   if (status === "passed") return pc.green("PASS".padEnd(COL_STATUS));
@@ -35,7 +45,7 @@ export function formatRow(row: RowInput, width: number): string {
     row.status === "failed"
       ? row.finding?.evidence[0] ?? row.finding?.offender ?? row.finding?.title ?? ""
       : row.status === "passed"
-        ? ""
+        ? voteNote(row) ?? ""
         : row.message ?? "Kane could not finish this check";
   const fixed = 2 + COL_STATUS + COL_FLOW + COL_CHECK;
   const line = `  ${badge(row.status)}${pc.dim(fit(flow, COL_FLOW - 1).padEnd(COL_FLOW))}${fit(label, COL_CHECK - 1).padEnd(COL_CHECK)}`;
@@ -60,6 +70,8 @@ export function formatSummary(report: ScanReport, elapsedMs: number, reportPath:
       : pc.bold(pc.red(`${leaks} leak${leaks === 1 ? "" : "s"} found`));
   const parts = [head];
   if (report.errors.length > 0) parts.push(pc.yellow(`${report.errors.length} error${report.errors.length === 1 ? "" : "s"}`));
+  const dismissed = (report.results ?? []).filter((r) => r.status === "passed" && voteNote(r)).length;
+  if (dismissed > 0) parts.push(pc.dim(`${dismissed} not counted (Kane did not repeat it)`));
   parts.push(pc.dim(`${Math.round(report.credits)} credits`), pc.dim(duration(elapsedMs)));
   return `\n  ${parts.join(pc.dim("  ·  "))}\n  ${pc.dim("Report")}  ${reportPath}\n`;
 }

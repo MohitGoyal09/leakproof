@@ -53,6 +53,39 @@ describe("cli main", () => {
     expect(out.join("\n")).toMatch(/came back.*home network/);
   });
 
+  it("scan re-checks a failure by default, and --no-confirm runs each check once", async () => {
+    const kane = useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
+    await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    expect(kaneCalls(kane).filter((c) => c.key === "status of 500")).toHaveLength(2);
+    const once = useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
+    await main(["node", "leakproof", "scan", "--no-confirm", "--config", join(dir, "leakproof.yml")], io);
+    expect(kaneCalls(once).filter((c) => c.key === "status of 500")).toHaveLength(1);
+  });
+
+  it("scan says when Kane flagged a check once but did not repeat it", async () => {
+    useFakeKane({ "status of 500": [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    const code = await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    const text = out.join("\n").replace(/\x1b\[[0-9;]*m/g, "");
+    expect(code).toBe(0);
+    expect(text).toMatch(/PASS\s+home\s+Hidden server errors\s+failed 1 of 3 runs, not counted/);
+    expect(text).toMatch(/1 not counted/);
+  });
+
+  it("scan writes GitHub annotations and the job summary inside GitHub Actions", async () => {
+    const summary = join(dir, "summary.md");
+    process.env.GITHUB_ACTIONS = "true";
+    process.env.GITHUB_STEP_SUMMARY = summary;
+    try {
+      useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });
+      await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io);
+    } finally {
+      delete process.env.GITHUB_ACTIONS;
+      delete process.env.GITHUB_STEP_SUMMARY;
+    }
+    expect(out.some((l) => l.startsWith("::error title=Leakproof%3A Hidden server errors (home)::"))).toBe(true);
+    expect(readFileSync(summary, "utf8")).toContain("## Leakproof: 1 leak found");
+  });
+
   it("scan exits 0 when clean", async () => {
     useFakeKane({});
     expect(await main(["node", "leakproof", "scan", "--config", join(dir, "leakproof.yml")], io)).toBe(0);
@@ -107,7 +140,7 @@ describe("cli fix", () => {
       .replace(/  - name: home[\s\S]*?(?=  - name: checkout)/, "");
     writeFileSync(join(dir, "leakproof.yml"), yml);
     g("init", "-q", "-b", "main"); g("config", "user.email", "d@e.com"); g("config", "user.name", "D"); g("add", "-A"); g("commit", "-qm", "init");
-    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
+    useFakeKane({ HttpOnly: [{ fixture: "fail", exit: 1 }, { fixture: "fail", exit: 1 }, { fixture: "pass", exit: 0 }, { fixture: "pass", exit: 0 }] });
     const { useFakeClaude } = await import("./helpers.js");
     useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
     const code = await main(["node", "leakproof", "fix", "--config", join(dir, "leakproof.yml")], io);

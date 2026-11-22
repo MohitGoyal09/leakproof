@@ -33,6 +33,8 @@ export interface RunKaneOptions {
   outDir: string;
   /** Kill Kane after this long. Default: Kane's own timeout plus a minute. */
   hardTimeoutMs?: number;
+  /** Added to the log file names, so a re-check does not overwrite the first run's log. */
+  tag?: string;
 }
 
 const DEFAULT_TIMEOUT_S = 180;
@@ -178,7 +180,7 @@ async function runOnce(unit: RunUnit, opts: RunKaneOptions, attempt: number): Pr
     const secrets = Object.values(opts.secrets);
     const stdout = redactSecrets(typeof res.stdout === "string" ? res.stdout : "", secrets);
     const stderr = redactSecrets(typeof res.stderr === "string" ? res.stderr : "", secrets);
-    const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${attempt > 1 ? `.try${attempt}` : ""}`);
+    const base = join(opts.outDir, `${unit.id.replace(/:/g, "__")}${opts.tag ? `.${opts.tag.replace(/[^\w-]/g, "")}` : ""}${attempt > 1 ? `.try${attempt}` : ""}`);
     writeOwnFile(`${base}.ndjson`, stdout);
     writeOwnFile(`${base}.err`, stderr);
     const result = parseNdjson(stdout, timedOut ? 3 : (res.exitCode ?? 2));

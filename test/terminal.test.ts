@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatFixSummary, formatHeader, formatRow, formatSummary } from "../src/report/terminal.js";
+import { formatFixSummary, formatHeader, formatRow, formatSummary, voteNote } from "../src/report/terminal.js";
 import type { Finding, FullReport, ScanReport } from "../src/types.js";
 
 const finding: Finding = {
@@ -66,5 +66,14 @@ describe("terminal", () => {
     const scan = (findings: Finding[]) => ({ findings, errors: [], credits: 0, units: 6 }) as unknown as ScanReport;
     const report: FullReport = { before: scan([]), outcomes: [], after: scan([]), lessons: { used: 2, learned: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app/api/login/route.ts"], reason: "cookie <b>not</b> marked Secure", at: "2026-11-22T10:00:00.000Z" }] } };
     expect(strip(formatFixSummary(report, 1000, "r.html"))).toMatch(/Lessons\s+used 2 from earlier runs · learned 1 new/);
+  });
+});
+
+describe("voteNote", () => {
+  it("says how many runs failed, how many could not run, and the outcome", () => {
+    expect(voteNote({ status: "passed", votes: ["failed", "passed", "passed"] })).toBe("failed 1 of 3 runs, not counted");
+    expect(voteNote({ status: "failed", votes: ["failed", "error"] })).toBe("failed 1 of 2 runs, 1 could not run, counted");
+    expect(voteNote({ status: "error", votes: ["failed", "passed", "error"] })).toBe("failed 1 of 3 runs, 1 could not run, not settled");
+    expect(voteNote({ status: "failed", votes: ["failed", "failed"] })).toBeUndefined();
   });
 });

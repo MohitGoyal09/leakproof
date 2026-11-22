@@ -4,6 +4,7 @@ import { redactSecrets as redact } from "../redact.js";
 import type { Finding, FindingOutcome, FixAttempt, FullReport } from "../types.js";
 import { writeOwnFile } from "../guard.js";
 import type { Lesson } from "../lessons.js";
+import { voteNote } from "./terminal.js";
 
 
 function makeEsc(secrets: readonly string[]) {
@@ -27,8 +28,9 @@ function exhibitRef(i: number): string {
 }
 
 /** Only links to Kane's own test manager: the page under test can steer Kane's output. */
-function safeHref(url: string | undefined): string | undefined {
-  return url && /^https:\/\/([\w-]+\.)*(lambdatest|testmuai)\.com\//.test(url) ? url : undefined;
+export function safeHref(url: string | undefined): string | undefined {
+  // No spaces, brackets or quotes either: the URL is also written into Markdown links.
+  return url && /^https:\/\/([\w-]+\.)*(lambdatest|testmuai)\.com\/[^\s()<>"'`\\[\]]*$/.test(url) ? url : undefined;
 }
 
 const ATTEMPT_LABEL: Record<FixAttempt["verdict"], string> = {
@@ -169,6 +171,17 @@ ${run ? `<p class="links"><a href="${esc(run)}" rel="noopener noreferrer">Failin
     const what = l.outcome === "passed" ? `Kane's re-run passed. Commit ${esc((l.commit ?? "").slice(0, 7))}.` : `${l.by === "leakproof" ? "Leakproof rejected it before Kane ran" : "Kane's re-run still failed"}: ${esc(l.reason ?? "no reason given")}`;
     return `<li>${stamp}<span><strong>${esc(CHECKS[l.check].label)}</strong> · ${esc(l.flow)} flow. ${what}</span><span class="files">${l.files.map(esc).join("<br>")}</span></li>`;
   };
+  const split = before.results.flatMap((r) => {
+    const note = voteNote(r);
+    if (!note) return [];
+    const [flow, check] = r.unit.split(":") as [string, Finding["check"]];
+    return [`<li><span class="stamp ${r.status === "failed" ? "leak" : "warn"}">${r.status === "failed" ? "COUNTED" : r.status === "passed" ? "NOT COUNTED" : "UNSETTLED"}</span><span><strong>${esc(CHECKS[check]?.label ?? check)}</strong> · ${esc(flow)} flow: ${esc(note)}.</span></li>`];
+  });
+  const recheckSection = split.length > 0
+    ? `<section class="lessons" aria-labelledby="recheck-h"><h2 id="recheck-h">Re-checked by Kane</h2>
+<p>Kane is a model, so a single run can be wrong. Every failed check was run again; when the two runs disagreed, a third run decided.</p>
+<ol>${split.join("")}</ol></section>`
+    : "";
   const lessonsSection = lessons
     ? `<section class="lessons" aria-labelledby="lessons-h"><h2 id="lessons-h">What Kane taught Leakproof</h2>
 <p>This run used ${lessons.used} lesson${lessons.used === 1 ? "" : "s"} from earlier runs and saved ${lessons.learned.length} new one${lessons.learned.length === 1 ? "" : "s"} to <code>.leakproof/lessons.json</code>. The next run gives them to the agent, so it does not repeat an edit Kane turned down.</p>
@@ -203,6 +216,7 @@ ${after ? `<div class="arrow" aria-hidden="true">→</div><div class="count seal
 <p class="verdict-line">${esc(verdictLine)}</p>
 </section>
 ${items.length === 0 ? `<p class="clean">No leaks found. Every check passed in a real browser.</p>` : items.map(exhibit).join("\n")}
+${recheckSection}
 ${lessonsSection}
 ${errors.length > 0 ? `<section class="errors"><span class="stamp warn">ERRORS</span><ul>${errors.map((e) => `<li><strong>${esc(e.unit)}</strong>: ${esc(e.message)}</li>`).join("")}</ul></section>` : ""}
 <footer><span>Every verdict above is a Kane CLI run in a real browser.</span><span>Reproduce: <code>leakproof scan</code></span></footer>

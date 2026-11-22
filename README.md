@@ -6,7 +6,7 @@
 
 **[Watch the 3-minute demo](https://youtu.be/23NzKrw3wp0)**: one real `leakproof fix` run, a fix Kane rejected and the retry it proved, a real open-source app, and the guard tests that stop the agent from cheating.
 
-[Demo video](https://youtu.be/23NzKrw3wp0) · [For judges](#for-judges) · [What it checks](#what-it-checks) · [How the loop works](#how-the-loop-works) · [Quick start](#quick-start) · [Safety rules](#safety-rules) · [Limits](#limits)
+[Demo video](https://youtu.be/23NzKrw3wp0) · [For judges](#for-judges) · [What it checks](#what-it-checks) · [How the loop works](#how-the-loop-works) · [Quick start](#quick-start) · [In CI](#in-ci-github-actions) · [Safety rules](#safety-rules) · [Limits](#limits)
 
 Your app can look perfect and still leak. A session cookie readable by any script. An API key in `localStorage`. A request failing with a 500 behind a page that renders fine. Production code calling a staging server. AI coding agents ship these all the time, because they check what the page *looks* like.
 
@@ -68,11 +68,13 @@ The full output, the report with the Kane run that proves each fix, the prompts 
 | Check | What it catches | What Kane looks at |
 |---|---|---|
 | `cookies` | Session cookies without `HttpOnly` or `Secure` | The browser's cookie jar, including HttpOnly cookies |
-| `storage` | Tokens, JWTs and `sk_live_` keys in `localStorage` | `localStorage` keys and values |
+| `storage` | Tokens, JWTs, `sk_live_` keys and auth state in `localStorage` or `sessionStorage` | Keys (`token`, `secret`, `api_key`, `auth`, `jwt`, `password`) and values (`eyJ…`, `sk_live_…`) in both stores |
 | `network` | Requests failing with 5xx behind a page that looks fine | Every request in the step |
 | `console` | Errors thrown by a click or a page load | The console, minus resource-load noise |
 | `env-leak` | Calls to `staging`, `dev`, `internal` or `localhost` hosts from production code | Request hosts, minus your app's own |
 | `vitals` | Pages, images or API calls slower than your budget | Request timings in the step |
+
+A failed check is not trusted on one run. Kane runs it again; if the two runs disagree, a third run decides. In `fix`, a fix's passing re-run is checked the same way, so one lucky Kane run does not become a commit. A one-off wrong failure therefore cannot invent a leak or block a fix, and the report lists every split verdict ("failed 1 of 3 runs, not counted"). A first scan run that wrongly passes is not re-checked (that would double every scan). `--no-confirm` counts a single run.
 
 ## How the loop works
 
@@ -126,6 +128,21 @@ npm install && npm link    # gives you the `leakproof` command
 
 `fix` needs the Claude Code CLI logged in (run `claude`, then `/login`). To run the agent another way (a different account, model or tool list), point `LEAKPROOF_CLAUDE_BIN` at a script that passes its arguments on to `claude`.
 
+## In CI (GitHub Actions)
+
+```yaml
+- uses: MohitGoyal09/leakproof@main
+  with:
+    kane-username: ${{ secrets.KANE_USERNAME }}
+    kane-access-key: ${{ secrets.KANE_ACCESS_KEY }}
+    working-directory: .          # where leakproof.yml and its start command live
+    fail-on-leaks: "true"         # "false" reports leaks without failing the job
+  env:
+    SHOP_PASS: ${{ secrets.SHOP_PASS }}   # every variable leakproof.yml lists under env
+```
+
+Each leak shows as an error on the run, the job summary gets a table with a link to each Kane run, and `report.html` and `findings.json` are uploaded as an artifact. The `leaks` output holds the count. [.github/workflows/demo-scan.yml](.github/workflows/demo-scan.yml) runs it on the demo shop (manual only, since every run spends Kane credits). The Action logs in with `kane-cli login --username --access-key` (Kane takes the key only as an argument) and logs out when the job ends; pass `kane-project-id` and `kane-folder-id` if your account would otherwise ask for them. It has not yet had a run on GitHub.
+
 ## leakproof.yml
 
 ```yaml
@@ -162,7 +179,7 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 - A hidden 500 or a slow request cannot be "fixed" by deleting the request: after a passing re-run, every request Kane named must still appear in that run's network log, and succeed.
 - A console error cannot be "fixed" by hiding it: an edit that removes a `console.error` call, replaces `console`, adds an empty `catch` or a global error handler is rejected before Kane runs.
 - If the agent runs git itself (a commit, a branch switch, a hidden-file flag or an edit to `.git/config`), the attempt is rejected and git is put back. Leakproof's own git commands run with hooks and fsmonitor turned off, so files the agent writes under `.git` never run.
-- The agent runs without the `env:` secrets and without Kane or TestMu AI credentials (`KANE_*`, `LT_*`, `LAMBDATEST_*`, `TESTMU_*`) in its environment.
+- The agent runs without the `env:` secrets and without Kane, TestMu AI or CI credentials (`KANE_*`, `LT_*`, `LAMBDATEST_*`, `TESTMU_*`, `ACTIONS_*`, `GITHUB_TOKEN`, `GH_TOKEN`) in its environment.
 - The agent may not edit `leakproof.yml`, `package.json`, lockfiles, `tsconfig*.json` or `*.config.*` files. If it does, the attempt is rejected and reverted.
 - A fix hidden in gitignored files (such as `.env.local`) cannot pass: Leakproof stops the app, snapshots those files before each attempt and puts them back before Kane re-checks, since they would never reach the commit. Build output and `node_modules` are not watched.
 - If Kane or the agent fails hard mid-fix (for example a logged-out CLI), or you press Ctrl-C, the unproven edit is reverted.
@@ -175,24 +192,24 @@ To run it on a real app instead, `bash scripts/real-world.sh scan|fix` clones [c
 
 ## Limits
 
-- The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, `sessionStorage`, hosts named `qa.` or `uat`).
+- The checks are assertions in plain English that Kane checks with a browser and a model. They are broad on purpose, so they can flag harmless things (a third-party cookie without `HttpOnly`, a `Secure` flag missing on plain-http localhost, a key named `token` that holds no secret) and miss others (4xx errors, hosts named `qa.` or `uat`). The `auth` key word also flags harmless keys such as `authorName`.
 - Step-scoped checks pass when nothing matching happens in the step. For `network` and `vitals`, Leakproof checks the passing re-run's own network log: every request Kane named must still happen and succeed, so deleting it does not count. For `console`, Leakproof rejects an edit, before Kane runs, that hides the error instead of fixing it: it removes a `console.error` call (even a stray debug one: keep it, fix the cause), replaces `console` or one of its methods, adds an empty `catch`, adds a global error handler or adds `suppressHydrationWarning`. New files are read too, and a new symlink, nested repository or file over 2 MB is rejected, because Leakproof cannot check it. This is a line-by-line text match, so a disguised edit (an aliased `console`, a `catch` split over lines, a logger wrapper, a deleted feature) can still get past it. Read the fix commits.
 - Each fix is re-checked alone. Other checks are re-run in the full re-scan. A leak that comes back gets one more fix pass; there is no third round, and a regression is never reverted automatically.
 - Gitignored files are compared with their state just before each attempt, while the app is stopped. If the agent changes one that is over 1 MB, it cannot be put back, so the run stops. Without a `start` command Leakproof cannot stop your app, so files your app writes during an attempt count as the agent's. Build output folders (`dist`, `build`, `out`, `.next`) and dependency folders are not watched.
 - The build-file guard knows the JavaScript ecosystem (`package.json`, lockfiles, `tsconfig*.json`, `*.config.*`). It does not know `Dockerfile`, `Makefile`, `.npmrc` or files of other ecosystems.
 - Only Claude Code is supported as the agent.
 - Lessons stay on your machine in `.leakproof/` and are not committed. A rejected edit's diff covers changed tracked files only, not new files, and is cut at 1,500 characters. Leakproof keeps the newest 50 lessons.
-- The evidence so far is two apps: the demo shop with six planted leaks, and one real open-source app ([cypress-realworld-app](docs/real-world/cypress-rwa/)). Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A leak that every scan misses is not reported, and the storage check is narrow: on the real app it missed the user's auth state in `localStorage`.
+- The evidence so far is two apps: the demo shop with six planted leaks, and one real open-source app ([cypress-realworld-app](docs/real-world/cypress-rwa/)). Kane is non-deterministic: in one run the first scan missed the console leak and only the re-scan caught it, and one of two scans of the hand-fixed shop flagged the cookie check although the cookie is set correctly ([control.txt](docs/sample-run/control.txt)). A failed check is re-run before it counts (see [What it checks](#what-it-checks)), which removes a one-off false alarm but costs one or two extra Kane runs per failure. A leak that every run misses is not reported. On the real app the storage check missed the user's auth state in `localStorage`; the check now looks for `auth` keys and `sessionStorage` too, which has not yet been re-run against that app.
 
 ## Cost
 
-Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds. Runs go 4 at a time. A full scan of the demo shop costs about 100–170 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 332 credits and took 19 minutes. The total counts every Kane run.
+Each check is one Kane run of about 5–30 credits (about 20 on average) and 50–110 seconds; a failed check costs one or two more runs to confirm. Runs go 4 at a time. A full scan of the demo shop costs about 100–170 credits. The full `fix` run above (scan, 6 fixes each proven by a Kane re-run, final re-scan) cost 332 credits and took 19 minutes. The total counts every Kane run.
 
 ## Development
 
 ```bash
 npm install
-npm test          # 200 tests, Kane and Claude replaced by fakes in test/fixtures
+npm test          # 230 tests, Kane and Claude replaced by fakes in test/fixtures
 npm run build
 ```
 

@@ -1,0 +1,39 @@
+# Runs the Leakproof Action on the demo shop. Manual only: every run spends Kane credits.
+# Needs repository secrets KANE_USERNAME and KANE_ACCESS_KEY (and optionally KANE_PROJECT_ID, KANE_FOLDER_ID).
+name: Demo scan
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Re-check failed checks
+        default: "true"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the demo shop
+        working-directory: examples/shop
+        run: npm ci --silent
+      - name: Leakproof
+        uses: ./
+        env:
+          SHOP_USER: demo
+          SHOP_PASS: demo123
+        with:
+          kane-username: ${{ secrets.KANE_USERNAME }}
+          kane-access-key: ${{ secrets.KANE_ACCESS_KEY }}
+          kane-project-id: ${{ secrets.KANE_PROJECT_ID }}
+          kane-folder-id: ${{ secrets.KANE_FOLDER_ID }}
+          working-directory: examples/shop
+          confirm: ${{ inputs.confirm }}
+          # The demo shop has six planted leaks: report them without failing the job.
+          fail-on-leaks: "false"

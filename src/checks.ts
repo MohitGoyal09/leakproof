@@ -18,7 +18,7 @@ export interface CheckInfo {
 
 export const CHECKS: Record<CheckId, CheckInfo> = {
   cookies: { label: "Cookie flags", why: "A session cookie without HttpOnly or Secure can be read by injected scripts or sent over plain HTTP." },
-  storage: { label: "Secrets in storage", why: "Tokens and keys in localStorage are readable by any script on the page." },
+  storage: { label: "Secrets in storage", why: "Tokens, keys and auth state in localStorage or sessionStorage are readable by any script on the page." },
   network: { label: "Hidden server errors", why: "The page looks fine, but a request behind it is failing." },
   console: { label: "Console errors", why: "A user action throws an error the UI hides." },
   "env-leak": { label: "Environment leaks", why: "Production code is calling a staging, dev or internal host." },
@@ -34,8 +34,18 @@ export function assertionFor(check: CheckId, ctx: AssertionContext): string {
       return "assert that there is no console message at level 'error' other than 'Failed to load resource' messages.";
     case "cookies":
       return "assert that at least one cookie is set. Then assert that no cookies are set without the HttpOnly flag. Then assert that no cookies are set without the Secure flag.";
-    case "storage":
-      return "assert that no localStorage key contains 'token', 'secret' or 'api_key'. Then assert that no localStorage value starts with 'sk_live_', 'sk_test_' or 'eyJ'.";
+    case "storage": {
+      // One storage area per sentence: Kane checks only one condition per sentence. 'auth' catches auth state
+      // kept for any script to read (the real app's `authState` passed the narrower list).
+      const keys = "contains 'token', 'secret', 'api_key', 'auth', 'jwt' or 'password'";
+      const values = "starts with 'sk_live_', 'sk_test_' or 'eyJ'";
+      return [
+        `assert that no localStorage key ${keys}.`,
+        `Then assert that no sessionStorage key ${keys}.`,
+        `Then assert that no localStorage value ${values}.`,
+        `Then assert that no sessionStorage value ${values}.`,
+      ].join(" ");
+    }
     case "env-leak":
       return `assert that no network request in this step went to a host, other than ${ctx.appHostname} on any port, that contains 'staging', 'localhost', '127.0.0.1', 'dev.' or 'internal'.`;
     case "vitals":

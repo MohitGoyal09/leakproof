@@ -16,6 +16,25 @@ const scanReport = (findings: Finding[]): ScanReport => ({
   results: [], findings, errors: [], credits: 118.4,
 });
 
+describe("renderHtml re-checks", () => {
+  it("lists failures that re-runs did not repeat, and split verdicts that still count", () => {
+    const before: ScanReport = { ...scanReport([finding()]), results: [
+      { unit: "checkout:cookies", status: "passed", votes: ["failed", "passed", "passed"] },
+      { unit: "home:network", status: "failed", votes: ["failed", "passed", "failed"] },
+      { unit: "home:vitals", status: "failed", votes: ["failed", "failed"] },
+    ] };
+    const html = renderHtml({ before }, "/r");
+    expect(html).toContain("Re-checked by Kane");
+    expect(html).toContain("NOT COUNTED</span><span><strong>Cookie flags</strong> · checkout flow: failed 1 of 3 runs, not counted.");
+    expect(html).toContain("COUNTED</span><span><strong>Hidden server errors</strong> · home flow: failed 2 of 3 runs, counted.");
+    expect(html).not.toMatch(/Slow requests[\s\S]*failed 2 of 2/);
+  });
+
+  it("has no re-check section when every failure repeated or none was re-checked", () => {
+    expect(renderHtml({ before: scanReport([]) }, "/r")).not.toContain("Re-checked by Kane");
+  });
+});
+
 describe("renderHtml lessons", () => {
   it("lists what Kane taught this run, escaped, and how many earlier lessons were used", () => {
     const html = renderHtml({ before: scanReport([]), after: scanReport([]), outcomes: [], lessons: { used: 2, learned: [{ id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "rejected", files: ["app/api/login/route.ts"], reason: "cookie <b>not</b> marked Secure", at: "2026-11-22T10:00:00.000Z" }, { id: "checkout:cookies", check: "cookies", flow: "checkout", outcome: "passed", files: ["app/api/login/route.ts"], commit: "abc1234def5678", at: "2026-11-22T10:05:00.000Z" }] } }, "/r");

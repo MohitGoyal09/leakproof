@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
-import { buildFixPrompt, fixAll } from "../src/fixer.js";
+import { agentEnv, buildFixPrompt, fixAll } from "../src/fixer.js";
 import { loadLessons, type Lesson } from "../src/lessons.js";
 import type { Config, Finding } from "../src/types.js";
 import { claudeCalls, kaneCalls, tempDir, useFakeClaude, useFakeKane } from "./helpers.js";
@@ -306,6 +306,36 @@ describe("fixAll", () => {
       expect(attempts[0].note).toMatch(/could not check/);
       expect(existsSync(join(repo, "quiet.js")) || existsSync(join(repo, "sub"))).toBe(false);
     }
+  });
+
+  it("with confirm, a fix must pass twice, and the final scan re-checks a failure too", async () => {
+    const f = { fixture: "fail", exit: 1 };
+    const p = { fixture: "pass", exit: 0 };
+    // scan: fail, fail · verify: pass, pass · final scan: fail, then pass twice (not counted)
+    const kane = useFakeKane({ HttpOnly: [f, f, p, p, f, p, p] });
+    useFakeClaude([{ write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config(), { confirm: true });
+    expect(report.before.results[0].votes).toEqual(["failed", "failed"]);
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["fixed"]);
+    expect(report.after!.results[0].votes).toEqual(["failed", "passed", "passed"]);
+    expect(report.after!.findings).toEqual([]);
+    expect(kaneCalls(kane)).toHaveLength(7);
+  });
+
+  it("with confirm, one lucky pass does not count as a fix", async () => {
+    const f = { fixture: "fail", exit: 1 };
+    const p = { fixture: "pass", exit: 0 };
+    // scan: fail, fail · attempt 1: pass, fail, fail · attempt 2: pass, pass · final scan: pass
+    useFakeKane({ HttpOnly: [f, f, p, f, f, p, p, p] });
+    useFakeClaude([{ write: { path: "app.js", content: "lucky\n" } }, { write: { path: "app.js", content: "fixed\n" } }]);
+    const report = await fixAll(config(), { confirm: true });
+    expect(report.outcomes![0].attempts.map((a) => a.verdict)).toEqual(["still-failing", "fixed"]);
+    expect(readFileSync(join(repo, "app.js"), "utf8")).toBe("fixed\n");
+  });
+
+  it("keeps GitHub and Actions tokens away from the agent", () => {
+    const env = agentEnv([], { GITHUB_TOKEN: "t", ACTIONS_RUNTIME_TOKEN: "r", ACTIONS_ID_TOKEN_REQUEST_URL: "u", PATH: "/bin" });
+    expect(env).toEqual({ PATH: "/bin" });
   });
 
   it("rejects an edit to leakproof.yml without calling Kane for it", async () => {

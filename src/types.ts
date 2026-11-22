@@ -96,6 +96,8 @@ export interface UnitResult {
   unit: string;
   status: KaneResult["status"];
   credits?: number;
+  /** Each Kane run's status when a failure was re-checked (confirm), in order. */
+  votes?: KaneResult["status"][];
 }
 
 export interface ScanReport {

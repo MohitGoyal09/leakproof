@@ -1,0 +1,102 @@
+name: Leakproof scan
+description: Walk your app's user flows with Kane CLI in a real browser and report hidden leaks a screenshot cannot see.
+author: Mohit Goyal
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  kane-username:
+    description: TestMu AI (LambdaTest) username for Kane CLI. Pass it from a repository secret.
+    required: true
+  kane-access-key:
+    description: TestMu AI (LambdaTest) access key for Kane CLI. Pass it from a repository secret.
+    required: true
+  kane-project-id:
+    description: Kane project id, so login does not ask for one.
+    required: false
+  kane-folder-id:
+    description: Kane folder id, so login does not ask for one.
+    required: false
+  working-directory:
+    description: Folder of the app (where leakproof.yml and its start command run).
+    default: "."
+  config:
+    description: Path to leakproof.yml, relative to working-directory.
+    default: leakproof.yml
+  confirm:
+    description: Re-check every failed check before it counts ("false" counts one run).
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded report artifact (change it when the action runs more than once in a job).
+    default: leakproof-report
+  fail-on-leaks:
+    description: Fail the job when leaks are found ("false" only reports them). A Kane or app error always fails.
+    default: "true"
+
+outputs:
+  leaks:
+    description: Number of leaks found.
+    value: ${{ steps.scan.outputs.leaks }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install Kane CLI and build Leakproof
+      shell: bash
+      run: |
+        npm install -g --silent @testmuai/kane-cli@0.10.4
+        cd "$GITHUB_ACTION_PATH" && npm ci --silent
+
+    - name: Log in to Kane
+      shell: bash
+      env:
+        KANE_USER: ${{ inputs.kane-username }}
+        KANE_KEY: ${{ inputs.kane-access-key }}
+        KANE_PROJECT: ${{ inputs.kane-project-id }}
+        KANE_FOLDER: ${{ inputs.kane-folder-id }}
+      run: |
+        args=(--username "$KANE_USER" --access-key "$KANE_KEY")
+        if [ -n "$KANE_PROJECT" ]; then args+=(--project-id "$KANE_PROJECT"); fi
+        if [ -n "$KANE_FOLDER" ]; then args+=(--folder-id "$KANE_FOLDER"); fi
+        kane-cli login "${args[@]}" </dev/null
+
+    - name: Scan
+      id: scan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        LP_CONFIG: ${{ inputs.config }}
+        LP_CONFIRM: ${{ inputs.confirm }}
+        LP_FAIL_ON_LEAKS: ${{ inputs.fail-on-leaks }}
+      run: |
+        flags=(--config "$LP_CONFIG")
+        if [ "$LP_CONFIRM" = "false" ]; then flags+=(--no-confirm); fi
+        code=0
+        node "$GITHUB_ACTION_PATH/dist/cli.js" scan "${flags[@]}" || code=$?
+        out=$(node -e 'console.log(require("node:path").resolve(require("node:path").dirname(process.argv[1]), ".leakproof"))' "$LP_CONFIG")
+        echo "out=$out" >> "$GITHUB_OUTPUT"
+        leaks=$(node -e 'try { console.log(require(process.argv[1]).findings.length) } catch { console.log(0) }' "$out/findings.json")
+        echo "leaks=$leaks" >> "$GITHUB_OUTPUT"
+        if [ "$code" = 1 ] && [ "$LP_FAIL_ON_LEAKS" = "false" ]; then code=0; fi
+        exit "$code"
+
+    - name: Upload the report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ steps.scan.outputs.out }}/report.html
+          ${{ steps.scan.outputs.out }}/findings.json
+        if-no-files-found: ignore
+
+    # kane-cli login takes the key only as an argument, so log out at once: later steps cannot reuse the stored login.
+    - name: Log out of Kane
+      if: always()
+      shell: bash
+      run: kane-cli logout </dev/null || true

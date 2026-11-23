@@ -49,3 +49,10 @@ before it counted ([scan.txt](rescan-2026-11-23/scan.txt), [findings.json](resca
 
 3 leaks after de-duplication (the same React warning in three flows counts once), 377 credits, 6 min 47 s.
 No verdict was split, so no third run was needed.
+
+## Fix run on 24 Nov 2026: 4 → 0 with confirmed verdicts
+
+With the wider storage check and confirm on, `fix` found 3 leaks, fixed them, and the re-scan caught a fourth (a React
+warning hidden behind the first one). All 4 fixes passed Kane twice before they were committed: **4 → 0, 1,058 credits,
+36 min 22 s.** One fix is only half real: the storage fix stores less, but also renames the key past the check's
+`auth` word. Full review: [fix-2026-11-24](fix-2026-11-24/).

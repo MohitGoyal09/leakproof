@@ -1,0 +1,52 @@
+leakproof  scanning http://localhost:3000  ·  8 checks across 3 flows
+
+  PASS   pay           Hidden server errors
+  LEAK   sign-in       Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  LEAK   sign-in       Cookie flags          Cookie flags check failed in the sign-in flow
+  LEAK   sign-in       Secrets in storage    Authentication-related key stored in localStorage
+  LEAK   pay           Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+  PASS   accounts      Hidden server errors
+  PASS   pay           Environment leaks
+  LEAK   accounts      Console errors        Warning: Invalid DOM property `%s`. Did you mean `%s`?…
+
+  3 leaks found. Handing each one to Claude Code, then asking Kane to prove the fix.
+
+  Exhibit A  Cookie flags · sign-in  Cookie flags check failed in the sign-in flow
+    attempt 1  edited backend/app.ts  → Kane re-run passed  FIXED
+
+  Exhibit B  Secrets in storage · sign-in  Authentication-related key stored in localStorage
+    attempt 1  edited cypress/support/auth-provider-co…  → Kane re-run passed  FIXED
+
+  Exhibit C  Console errors · sign-in  Sign-in page emits invalid SVG DOM-property console errors
+    attempt 1  edited src/components/SvgCypressLogo.tsx  → Kane re-run passed  FIXED
+
+  Re-scanning every flow to catch regressions
+
+  PASS   sign-in       Cookie flags
+  PASS   sign-in       Console errors
+  PASS   sign-in       Secrets in storage
+  PASS   pay           Hidden server errors
+  PASS   accounts      Hidden server errors
+  PASS   pay           Environment leaks
+  PASS   accounts      Console errors
+  LEAK   pay           Console errors        Warning: Function components cannot be given refs. Att…
+  The re-scan found 1 leak that is not settled (missed before, or broken by a later fix). Fixing it too.
+
+  Exhibit D  Console errors · pay  Payment amount field emits React console errors
+    attempt 1  edited src/components/TransactionCreate…  → Kane re-run passed  FIXED
+
+  Re-scanning every flow to catch regressions
+
+  PASS   sign-in       Cookie flags
+  PASS   sign-in       Secrets in storage
+  PASS   pay           Hidden server errors
+  PASS   pay           Console errors
+  PASS   sign-in       Console errors
+  PASS   accounts      Hidden server errors
+  PASS   pay           Environment leaks
+  PASS   accounts      Console errors
+
+  4 → 0 leaks  ·  4 fixes verified by Kane  ·  1058 credits  ·  36m 22s
+  Lessons  used 0 from earlier runs · learned 4 new
+  Report  .leakproof/report.html
+

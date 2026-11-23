@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "lessons": [
+    {
+      "id": "sign-in:cookies",
+      "check": "cookies",
+      "flow": "sign-in",
+      "outcome": "passed",
+      "files": [
+        "backend/app.ts"
+      ],
+      "at": "2026-11-23T21:09:59.584Z",
+      "commit": "54d47a4bcc3f6641d668cc7105a55cf835c89d99"
+    },
+    {
+      "id": "sign-in:storage",
+      "check": "storage",
+      "flow": "sign-in",
+      "outcome": "passed",
+      "files": [
+        "cypress/support/auth-provider-commands/auth0.ts",
+        "src/machines/authMachine.ts"
+      ],
+      "at": "2026-11-23T21:17:07.171Z",
+      "commit": "c56afba22d8cad5f50c6d82b755edb37c07c10ac"
+    },
+    {
+      "id": "sign-in:console",
+      "check": "console",
+      "flow": "sign-in",
+      "outcome": "passed",
+      "files": [
+        "src/components/SvgCypressLogo.tsx"
+      ],
+      "at": "2026-11-23T21:20:28.593Z",
+      "commit": "0bef933b1021863640d9a88c00decae9c1256a05"
+    },
+    {
+      "id": "pay:console",
+      "check": "console",
+      "flow": "pay",
+      "outcome": "passed",
+      "files": [
+        "src/components/TransactionCreateStepTwo.tsx"
+      ],
+      "at": "2026-11-23T21:31:14.421Z",
+      "commit": "85ee225cc3d630f8fabcbefac07c780f80eb9107"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+85ee225 fix: leakproof console in pay
+0bef933 fix: leakproof console in sign-in
+c56afba fix: leakproof storage in sign-in
+54d47a4 fix: leakproof cookies in sign-in

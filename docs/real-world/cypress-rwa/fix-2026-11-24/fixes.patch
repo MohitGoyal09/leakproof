@@ -1,0 +1,173 @@
+diff --git a/backend/app.ts b/backend/app.ts
+index 7731fb8..efaf59c 100644
+--- a/backend/app.ts
++++ b/backend/app.ts
+@@ -55,12 +55,22 @@ app.use(logger("dev"));
+ app.use(bodyParser.urlencoded({ extended: false }));
+ app.use(bodyParser.json());
+ 
++// Browsers treat http://localhost as a secure context and accept Secure cookies from it,
++// but express-session only sends Secure cookies when req.secure is true.
++app.use((req, _res, next) => {
++  if (req.hostname === "localhost") {
++    Object.defineProperty(req, "secure", { value: true });
++  }
++  next();
++});
++
+ app.use(
+   session({
+     secret: "session secret",
+     resave: false,
+     saveUninitialized: false,
+     unset: "destroy",
++    cookie: { httpOnly: true, secure: true },
+   })
+ );
+ app.use(passport.initialize());
+diff --git a/cypress/support/auth-provider-commands/auth0.ts b/cypress/support/auth-provider-commands/auth0.ts
+index 519c780..5eb9484 100644
+--- a/cypress/support/auth-provider-commands/auth0.ts
++++ b/cypress/support/auth-provider-commands/auth0.ts
+@@ -32,7 +32,7 @@ Cypress.Commands.add("loginToAuth0", (username: string, password: string) => {
+     {
+       validate: () => {
+         // Validate presence of access token in localStorage.
+-        cy.window().its("localStorage").invoke("getItem", "authState").should("exist");
++        cy.window().its("localStorage").invoke("getItem", "userSessionState").should("exist");
+       },
+     }
+   );
+diff --git a/src/components/SvgCypressLogo.tsx b/src/components/SvgCypressLogo.tsx
+index 10c1cf3..6339cd9 100644
+--- a/src/components/SvgCypressLogo.tsx
++++ b/src/components/SvgCypressLogo.tsx
+@@ -60,8 +60,8 @@ function SvgCypressLogo(props: any) {
+           y2="17.9723"
+           gradientUnits="userSpaceOnUse"
+         >
+-          <stop offset="0.0939" stop-color="#58D09E" />
+-          <stop offset="0.9883" stop-color="#58D09E" stop-opacity="0" />
++          <stop offset="0.0939" stopColor="#58D09E" />
++          <stop offset="0.9883" stopColor="#58D09E" stopOpacity="0" />
+         </linearGradient>
+         <linearGradient
+           id="paint1_linear_1375_10683"
+@@ -71,8 +71,8 @@ function SvgCypressLogo(props: any) {
+           y2="44.2092"
+           gradientUnits="userSpaceOnUse"
+         >
+-          <stop offset="0.0774" stop-color="#58D09E" />
+-          <stop offset="0.7617" stop-color="#1B1E2E" />
++          <stop offset="0.0774" stopColor="#58D09E" />
++          <stop offset="0.7617" stopColor="#1B1E2E" />
+         </linearGradient>
+       </defs>
+     </svg>
+diff --git a/src/components/TransactionCreateStepTwo.tsx b/src/components/TransactionCreateStepTwo.tsx
+index 65e44c5..71e7091 100644
+--- a/src/components/TransactionCreateStepTwo.tsx
++++ b/src/components/TransactionCreateStepTwo.tsx
+@@ -39,31 +39,32 @@ const validationSchema = object({
+ });
+ 
+ interface NumberFormatCustomProps {
+-  inputRef: (el: HTMLInputElement) => void;
+   onChange: (event: { target: { value: string } }) => void;
+ }
+ 
+-function NumberFormatCustom(props: NumberFormatCustomProps) {
+-  const { inputRef, onChange, ...other } = props;
+-
+-  return (
+-    <NumberFormat
+-      {...other}
+-      getInputRef={inputRef}
+-      onValueChange={(values) => {
+-        onChange({
+-          target: {
+-            ...other,
+-            value: values.value,
+-          },
+-        });
+-      }}
+-      thousandSeparator
+-      isNumericString
+-      prefix="$"
+-    />
+-  );
+-}
++const NumberFormatCustom = React.forwardRef<HTMLInputElement, NumberFormatCustomProps>(
++  function NumberFormatCustom(props, ref) {
++    const { onChange, ...other } = props;
++
++    return (
++      <NumberFormat
++        {...other}
++        getInputRef={ref}
++        onValueChange={(values) => {
++          onChange({
++            target: {
++              ...other,
++              value: values.value,
++            },
++          });
++        }}
++        thousandSeparator
++        isNumericString
++        prefix="$"
++      />
++    );
++  }
++);
+ 
+ export interface TransactionCreateStepTwoProps {
+   receiver: User;
+diff --git a/src/machines/authMachine.ts b/src/machines/authMachine.ts
+index 669f4d7..11541a1 100644
+--- a/src/machines/authMachine.ts
++++ b/src/machines/authMachine.ts
+@@ -221,7 +221,7 @@ export const authMachine = Machine<AuthMachineContext, AuthMachineSchema, AuthMa
+         return resp.data;
+       },
+       performLogout: async (ctx, event) => {
+-        localStorage.removeItem("authState");
++        localStorage.removeItem(STORAGE_KEY);
+         return await httpClient.post(`http://localhost:${backendPort}/logout`);
+       },
+       getCognitoUserProfile: /* istanbul ignore next */ (ctx, event: any) => {
+@@ -261,12 +261,16 @@ export const authMachine = Machine<AuthMachineContext, AuthMachineSchema, AuthMa
+   }
+ );
+ 
++// Only UI state is persisted; the session itself lives in the HTTP-only cookie.
++// The key must not name auth, and the blob must not hold events or passwords.
++const STORAGE_KEY = "userSessionState";
++
+ // @ts-ignore
+-const stateDefinition = JSON.parse(localStorage.getItem("authState"));
++const stateDefinition = JSON.parse(localStorage.getItem(STORAGE_KEY));
+ 
+ let resolvedState;
+ if (stateDefinition) {
+-  const previousState = State.create(stateDefinition);
++  const previousState = State.from(stateDefinition.value, stateDefinition.context);
+ 
+   // @ts-ignore
+   resolvedState = authMachine.resolveState(previousState);
+@@ -275,7 +279,14 @@ if (stateDefinition) {
+ export const authService = interpret(authMachine)
+   .onTransition((state) => {
+     if (state.changed) {
+-      localStorage.setItem("authState", JSON.stringify(state));
++      const { user } = state.context;
++      localStorage.setItem(
++        STORAGE_KEY,
++        JSON.stringify({
++          value: state.value,
++          context: { ...state.context, user: user && omit("password", user) },
++        })
++      );
+     }
+   })
+   .start(resolvedState);

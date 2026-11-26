@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
@@ -104,6 +104,7 @@ export async function main(argv: string[], io: Io = defaultIo): Promise<number> 
   const program = new Command()
     .name("leakproof")
     .description("Find the leaks a screenshot can't see, fix them with a coding agent, and prove every fix with Kane CLI.")
+    .version((JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version)
     .exitOverride()
     .configureOutput({ writeOut: (s) => io.out(s.trimEnd()), writeErr: (s) => io.err(s.trimEnd()) });
 

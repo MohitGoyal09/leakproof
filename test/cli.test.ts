@@ -27,6 +27,13 @@ afterEach(() => server.close());
 
 const io = { out: (s: string) => out.push(s), err: (s: string) => out.push(s), width: 100 };
 
+it("prints the package version for --version", async () => {
+  out = [];
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  expect(await main(["node", "leakproof", "--version"], io)).toBe(0);
+  expect(out.join("\n")).toBe(pkg.version);
+});
+
 describe("cli main", () => {
   it("scan exits 1 when leaks are found and prints LEAK rows", async () => {
     useFakeKane({ "status of 500": { fixture: "fail", exit: 1 } });

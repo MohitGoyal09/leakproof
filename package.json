@@ -1,5 +1,5 @@
 {
-  "name": "leakproof",
+  "name": "leakproof-cli",
   "version": "0.1.0",
   "description": "Find the leaks a screenshot can't see. Kane CLI walks your app's flows, a coding agent fixes each leak, and Kane proves every fix.",
   "type": "module",

@@ -2,11 +2,11 @@
 
 **Find the leaks a screenshot can't see. Have your coding agent fix them. Make Kane prove every fix.**
 
-[![Leakproof demo video: 6 leaks found, 0 after fixes, every fix verified by a Kane re-run](docs/assets/demo-video.jpg)](https://youtu.be/23NzKrw3wp0)
+[![Leakproof demo video: 4 leaks found on a real app, 0 after fixes, every fix verified by a Kane re-run](docs/assets/demo-video.jpg)](https://youtu.be/nYUhKqHw_qA)
 
-**[Watch the 3-minute demo](https://youtu.be/23NzKrw3wp0)**: one real `leakproof fix` run, a fix Kane rejected and the retry it proved, a real open-source app, and the guard tests that stop the agent from cheating.
+**[Watch the 3-minute demo](https://youtu.be/nYUhKqHw_qA)**: one real `leakproof fix` run on an open-source app we didn't write (4 → 0 leaks), a fix Kane rejected and the retry it proved, and the guard tests that stop the agent from cheating. The write-up: [dev.to](https://dev.to/mohit_goyal_d1ed585c68889/claude-code-fixed-4-leaks-in-an-app-i-didnt-write-kane-proved-every-fix-21a7).
 
-[Demo video](https://youtu.be/23NzKrw3wp0) · [For judges](#for-judges) · [What it checks](#what-it-checks) · [How the loop works](#how-the-loop-works) · [Quick start](#quick-start) · [In CI](#in-ci-github-actions) · [Safety rules](#safety-rules) · [Limits](#limits)
+[Demo video](https://youtu.be/nYUhKqHw_qA) · [For judges](#for-judges) · [What it checks](#what-it-checks) · [How the loop works](#how-the-loop-works) · [Quick start](#quick-start) · [In CI](#in-ci-github-actions) · [Safety rules](#safety-rules) · [Limits](#limits)
 
 Your app can look perfect and still leak. A session cookie readable by any script. An API key in `localStorage`. A request failing with a 500 behind a page that renders fine. Production code calling a staging server. AI coding agents ship these all the time, because they check what the page *looks* like.
 
@@ -18,7 +18,7 @@ Leakproof walks your app's real user flows in a real browser with [Kane CLI](htt
 
 | Criterion | Where to check it |
 |---|---|
-| See it run (3 min) | [Demo video on YouTube](https://youtu.be/23NzKrw3wp0): every number in it comes from the recorded runs in this repo |
+| See it run (3 min) | [Demo video on YouTube](https://youtu.be/nYUhKqHw_qA): every number in it comes from a recorded run |
 | Works end to end | `bash scripts/real-world.sh scan` (a real app) or `bash scripts/demo.sh fix` (the demo shop) |
 | Kane caught or proved something | Real app: [docs/real-world/cypress-rwa](docs/real-world/cypress-rwa/) (2 real React errors, a missing Secure flag; a re-scan with the wider storage check also caught the signed-in user's state in `localStorage`, each leak confirmed by two Kane runs). A later `fix` run took the real app 4 → 0, every fix passing Kane twice, with our review of each fix: [fix-2026-11-24](docs/real-world/cypress-rwa/fix-2026-11-24/) Demo: [docs/sample-run](docs/sample-run/) (6 → 0) |
 | The agent and Kane talk | The prompts the agent got, with Kane's evidence: [real app](docs/real-world/cypress-rwa/prompts/), [demo](docs/sample-run/prompts/). Kane's re-run verdict goes back on a fail ([How Kane and the agent talk](#how-the-loop-works)) |

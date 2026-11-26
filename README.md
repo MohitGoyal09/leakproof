@@ -111,16 +111,13 @@ npm install -g @testmuai/kane-cli
 kane-cli login
 ```
 
-Install it from npm (the package is `leakproof-cli`, the command is `leakproof`):
+Run it straight from GitHub (it builds on install):
 
 ```bash
-npm install -g leakproof-cli
-leakproof init     # writes leakproof.yml
-leakproof scan     # find leaks, write .leakproof/report.html
-leakproof fix      # fix each leak with Claude Code, prove each fix with Kane
+npx github:MohitGoyal09/leakproof init     # writes leakproof.yml
+npx github:MohitGoyal09/leakproof scan     # find leaks, write .leakproof/report.html
+npx github:MohitGoyal09/leakproof fix      # fix each leak with Claude Code, prove each fix with Kane
 ```
-
-Or run it without installing: `npx leakproof-cli scan`.
 
 Or clone it:
 
